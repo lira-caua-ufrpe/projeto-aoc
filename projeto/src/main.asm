@@ -1,68 +1,74 @@
 # ============================================================
-# UFRPE – Projetos 1 (PE1) – 1ª VA
-# Professor: Vitor
-# Arquivo: main.asm
-# Grupo: <nomes completos>
-# Descrição: Ponto de entrada do projeto (menu).
+# main.asm – Shell do banco + parser de comandos
 # ============================================================
-
 .data
-menu:      .asciiz "1) Exemplo de soma\n0) Sair\nOpcao: "
-nl:        .asciiz "\n"
-promptA:   .asciiz "Digite A: "
-promptB:   .asciiz "Digite B: "
-saidaSoma: .asciiz "Soma = "
-
+cmd_cadastrar: .asciiz "conta_cadastrar"
+# buffers de tokens: tok_ptrs[0] = comando; [1..3] = opções
 .text
 .globl main
 
 main:
-    # loop do menu
-menu_loop:
-    li   $v0, 4         # print_string
-    la   $a0, menu
-    syscall
+    # laço principal
+shell_loop:
+    # banner
+    la  $a0, banner
+    jal print_str
 
-    li   $v0, 5         # read_int
-    syscall
-    move $t0, $v0       # $t0 = opcao
+    # lê linha
+    la  $a0, linha_in
+    li  $a1, 128
+    jal read_line
 
-    beq  $t0, $zero, sair    # 0 -> sair
-    beq  $t0, 1, opc_soma    # 1 -> soma
-    j    menu_loop           # inválida -> volta
+    # atualiza “relógio” (acumula ms; futuramente atualiza string e juros)
+    jal tick_relogio
 
-opc_soma:
-    # ler A
-    li   $v0, 4
-    la   $a0, promptA
-    syscall
-    li   $v0, 5
-    syscall
-    move $a0, $v0            # arg0 = A
+    # tokenizar por '-' e '\n'
+    la  $t0, linha_in
+    la  $t1, tok_ptrs
+    sw  $t0, 0($t1)          # primeiro token começa no início
+    li  $t2, 1               # idx próximo token (1..3)
+tok_loop:
+    lb  $t3, 0($t0)
+    beq $t3, $zero, tok_end
+    beq $t3, 10, tok_finish  # '\n'
+    beq $t3, '-', is_delim
+    addi $t0,$t0,1
+    j tok_loop
+is_delim:
+    sb  $zero, 0($t0)        # termina token com '\0'
+    addi $t0,$t0,1
+    blt  $t2,4, store_ptr
+    j tok_loop
+store_ptr:
+    sll $t4,$t2,2            # *4
+    add $t4,$t4,$t1
+    sw  $t0, 0($t4)          # salva ponteiro
+    addi $t2,$t2,1
+    j tok_loop
+tok_finish:
+    sb  $zero, 0($t0)
+tok_end:
 
-    # ler B
-    li   $v0, 4
-    la   $a0, promptB
-    syscall
-    li   $v0, 5
-    syscall
-    move $a1, $v0            # arg1 = B
+    # comparar comando
+    la  $a0, tok_ptrs
+    lw  $a0, 0($a0)          # a0 = ptr do comando
+    la  $a1, cmd_cadastrar
+    jal strcmp
+    beq $v0, $zero, do_cadastrar
 
-    jal  sum_two             # chama rotina (em math.asm)
+    # (aqui depois encadeia outros comandos usando strcmp)
+    la  $a0, msg_inv_cmd
+    jal print_str
+    j shell_loop
 
-    # imprime resultado
-    li   $v0, 4
-    la   $a0, saidaSoma
-    syscall
-    move $a0, $v0            # $v0 tem o retorno de sum_two
-    li   $v0, 1              # print_int
-    syscall
-    li   $v0, 4
-    la   $a0, nl
-    syscall
-
-    j    menu_loop
-
-sair:
-    li   $v0, 10             # exit
-    syscall
+# ----- executar conta_cadastrar -cpf -conta6 -nome -----
+do_cadastrar:
+    la  $t1, tok_ptrs
+    lw  $a0, 4($t1)          # option1 = cpf
+    lw  $a1, 8($t1)          # option2 = conta6 (string numérica, 6 dígitos)
+    lw  $a2, 12($t1)         # option3 = nome (resto da linha sem '-')
+    beq  $a0,$zero, shell_loop
+    beq  $a1,$zero, shell_loop
+    beq  $a2,$zero, shell_loop
+    jal  conta_cadastrar
+    j shell_loop
