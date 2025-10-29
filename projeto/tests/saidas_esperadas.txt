@@ -1,0 +1,6 @@
+Cliente cadastrado com sucesso. Numero da conta 765432-7
+Numero da conta ja em uso
+Ja existe conta neste CPF
+Cliente cadastrado com sucesso. Numero da conta 222222-X
+Cliente cadastrado com sucesso. Numero da conta 123456-0
+Comando invalido
