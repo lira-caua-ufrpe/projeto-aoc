@@ -6,14 +6,14 @@
 # Arquivo: ex01.asm
 # Grupo: <nomes dos integrantes>
 # Semestre letivo: 2025.2
-# Descrição: strcpy, memcpy, strcmp, strncmp + main com testes.
+# Descrição: strcpy, memcpy, strcmp, strncmp, strcat + main com testes.
 # Convenções:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
-#   - Temporários: $t0..$t7
-#   - Sem chamadas aninhadas -> não precisa salvar $ra.
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 (somente)
 # ============================================================
 
 .data
@@ -22,6 +22,7 @@ origem:         .asciiz "UFRPE"
 origem2:        .asciiz "UFRPa"       # difere em 'E'(69) vs 'a'(97)
 destino:        .space  32
 copia:          .space  32            # para preparar strings iguais
+sufixo:         .asciiz "-PE"
 
 # ---- buffers/testes de memcpy ----
 mem_src:        .byte 1,2,3,4,5,6,7,8
@@ -35,6 +36,7 @@ msg_cmp_eq:     .asciiz "strcmp(\"UFRPE\",\"UFRPE\") = "
 msg_cmp_ne:     .asciiz "strcmp(\"UFRPE\",\"UFRPa\") = "
 msg_ncmp3:      .asciiz "strncmp(\"UFRPE\",\"UFRPa\",3) = "
 msg_ncmp5:      .asciiz "strncmp(\"UFRPE\",\"UFRPa\",5) = "
+msg_cat:        .asciiz "strcat(dst,\"-PE\") -> dst: "
 msg_nl:         .asciiz "\n"
 
 .text
@@ -43,6 +45,7 @@ msg_nl:         .asciiz "\n"
 .globl memcpy
 .globl strcmp
 .globl strncmp
+.globl strcat
 
 # ------------------------------------------------------------
 # main primeiro, para o MARS iniciar aqui
@@ -179,6 +182,24 @@ end_line:
     la   $a0, msg_nl
     syscall
 
+    # ---------- Teste strcat ----------
+    # destino já contém "UFRPE" do teste do strcpy; vamos concatenar "-PE"
+    la   $a0, destino          # dst
+    la   $a1, sufixo           # src "-PE"
+    jal  strcat
+
+    li   $v0, 4
+    la   $a0, msg_cat          # "strcat(dst,\"-PE\") -> dst: "
+    syscall
+
+    li   $v0, 4
+    la   $a0, destino          # imprime "UFRPE-PE"
+    syscall
+
+    li   $v0, 4
+    la   $a0, msg_nl
+    syscall
+
     # ---------- encerra ----------
     li   $v0, 10
     syscall
@@ -267,4 +288,27 @@ ncmp_eq:
     jr   $ra
 ncmp_diff:
     sub  $v0, $t2, $t3         # v0 = c1 - c2
+    jr   $ra
+
+# ------------------------------------------------------------
+# strcat(a0=dst, a1=src) -> v0 = dst
+# Encontra o '\0' de dst e copia src a partir dali, incluindo '\0'.
+# ------------------------------------------------------------
+strcat:
+    move $t0, $a0              # t0 = cursor em dst
+    move $t1, $a1              # t1 = cursor em src
+# acha o fim de dst
+cat_seek:
+    lb   $t2, 0($t0)           # lê byte em dst
+    beq  $t2, $zero, cat_copy  # parou no '\0'
+    addi $t0, $t0, 1           # avança dst
+    j    cat_seek
+# copia src (inclui '\0')
+cat_copy:
+    lb   $t3, 0($t1)           # lê de src
+    sb   $t3, 0($t0)           # grava em dst
+    addi $t1, $t1, 1           # avança src
+    addi $t0, $t0, 1           # avança dst
+    bne  $t3, $zero, cat_copy  # até copiar o '\0'
+    move $v0, $a0              # retorno = dst original
     jr   $ra
