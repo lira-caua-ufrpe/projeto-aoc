@@ -1,19 +1,21 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Projetos 1 (PE1) – 1a VA
-# Professor: Vitor
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
 # Atividade: Lista de Exercícios – Questão 1 (string.h)
-# Arquivo: ex01.asm
-# Grupo: <nomes dos integrantes>
-# Semestre letivo: 2025.2
-# Descrição: strcpy, memcpy, strcmp, strncmp, strcat + main com testes.
+# Arquivo: ex1.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas; Lucas Emanuel
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
 # Convenções:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Temporários: $t0..$t9 (somente)
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
 # ============================================================
 
 .data
