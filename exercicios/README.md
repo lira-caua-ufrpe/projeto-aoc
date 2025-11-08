@@ -1,27 +1,29 @@
-# Exercícios (20%)
+# Exercícios — PE1 (Assembly MIPS | MARS 4.5)
 
-## ex1.asm – Funções de string (strcpy, memcpy, strcmp, strncmp, strcat)
-**Como executar**
-1. Abra `exercicios/ex1.asm` no MARS.
-2. Monte e execute.
-3. O console deve exibir testes de cada função (0 para iguais em `strcmp/strncmp`).
+Esta pasta reúne os arquivos das **questões da lista (20%)**.
 
-**Esperados (resumo)**
-- `strcpy` copia `"UFRPE"` para `dst`.
-- `strcat(dst,"-PE")` resulta em `"UFRPE-PE"`.
-- `strcmp("UFRPE","UFRPE") = 0`.
-- `strcmp("UFRPE","UFRPa") < 0` (diferença ASCII no primeiro char que diverge).
-- `strncmp("UFRPE","UFRPa",3) = 0` (três primeiros iguais).
+## 📁 Arquivos
+- `ex1.asm` — Implementa as funções da `string.h` em MIPS:
+  - `strcpy(a0=dst, a1=src) -> v0=dst`
+  - `memcpy(a0=dst, a1=src, a2=num) -> v0=dst`
+  - `strcmp(a0=str1, a1=str2) -> v0`  (<0, 0, >0)
+  - `strncmp(a0=str1, a1=str2, a3=num) -> v0`  (<0, 0, >0)
+  - `strcat(a0=dst, a1=src) -> v0=dst`
+  - `main` com casos de teste imprimindo os resultados  
+- `ex1_expected.txt` — **Saída esperada** ao executar `ex1.asm`.
+- `ex2.asm` — (placeholder) Esqueleto para a questão 2 da lista.
 
-## ex2.asm – MMIO Echo (Keyboard → Display)
-**Como executar**
-1. MARS → Tools → **Keyboard and Display MMIO Simulator** → **Connect to MIPS**.
-2. Monte e execute `exercicios/ex2.asm`.
-3. Digite no campo **KEYBOARD** → aparece no **DISPLAY** em tempo real.
-4. **ESC** encerra.
+---
 
-**Endereços MMIO (MARS)**
-- `0xFFFF0000` Keyboard Control (bit0=1 dado disponível)
-- `0xFFFF0004` Keyboard Data (ASCII no byte baixo)
-- `0xFFFF0008` Display Control (bit0=1 pronto p/ transmitir)
-- `0xFFFF000C` Display Data (escrever ASCII no byte baixo)
+## ▶️ Como executar (MARS 4.5)
+
+### Opção A — Interface do MARS
+1. Abra o `Mars4_5.jar`.
+2. Ative **Settings → Initialize Program Counter to 'main'** (ou deixe o `main` no topo, como já está).
+3. Em **File → Open**, escolha `ex1.asm`.
+4. Clique em **Assemble** e depois **Run**.
+
+### Opção B — Linha de comando
+No diretório raiz do repositório (onde está o `Mars4_5.jar`):
+```bash
+java -jar Mars4_5.jar exercicios/ex1.asm
