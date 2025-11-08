@@ -7,6 +7,8 @@
 # Arquivo: ex1.asm
 # Equipe: OPCODE
 # Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
 # Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
 # Convenções:
@@ -16,20 +18,21 @@
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
 #   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
 # ============================================================
 
-.data
+.data                         # seção de dados estáticos
 # ---- buffers/testes de string ----
-origem:         .asciiz "UFRPE"
-origem2:        .asciiz "UFRPa"       # difere em 'E'(69) vs 'a'(97)
-destino:        .space  32
-copia:          .space  32            # para preparar strings iguais
-sufixo:         .asciiz "-PE"
+origem:         .asciiz "UFRPE"            # string origem 1 (terminada em '\0')
+origem2:        .asciiz "UFRPa"            # origem 2: difere no último caractere ('E'(69) vs 'a'(97))
+destino:        .space  32                 # destino para strcpy/strcat
+copia:          .space  32                 # buffer para preparar "cópia" igual a origem
+sufixo:         .asciiz "-PE"              # sufixo a concatenar em strcat
 
 # ---- buffers/testes de memcpy ----
-mem_src:        .byte 1,2,3,4,5,6,7,8
-mem_dst:        .space 8
-sep:            .asciiz " | "
+mem_src:        .byte 1,2,3,4,5,6,7,8      # bytes de origem para memcpy
+mem_dst:        .space 8                   # destino para memcpy
+sep:            .asciiz " | "              # separador visual para impressão de bytes
 
 # ---- mensagens ----
 msg_copy:       .asciiz "strcpy -> dst: "
@@ -41,107 +44,107 @@ msg_ncmp5:      .asciiz "strncmp(\"UFRPE\",\"UFRPa\",5) = "
 msg_cat:        .asciiz "strcat(dst,\"-PE\") -> dst: "
 msg_nl:         .asciiz "\n"
 
-.text
-.globl main
-.globl strcpy
-.globl memcpy
-.globl strcmp
-.globl strncmp
-.globl strcat
+.text                        # seção de código (instruções)
+.globl main                  # exporta 'main' para o loader do MARS
+.globl strcpy                # exporta 'strcpy'
+.globl memcpy                # exporta 'memcpy'
+.globl strcmp                # exporta 'strcmp'
+.globl strncmp               # exporta 'strncmp'
+.globl strcat                # exporta 'strcat'
 
 # ------------------------------------------------------------
 # main primeiro, para o MARS iniciar aqui
 # ------------------------------------------------------------
 main:
     # ---------- Teste strcpy ----------
-    la   $a0, destino
-    la   $a1, origem
-    jal  strcpy
+    la   $a0, destino                         # $a0 = &destino
+    la   $a1, origem                          # $a1 = &origem
+    jal  strcpy                               # chama strcpy(destino, origem)
 
-    li   $v0, 4
-    la   $a0, msg_copy
+    li   $v0, 4                               # syscall 4 = print_string
+    la   $a0, msg_copy                        # imprime rótulo
     syscall
 
-    li   $v0, 4
-    la   $a0, destino
+    li   $v0, 4                               # syscall 4 = print_string
+    la   $a0, destino                         # imprime a string copiada
     syscall
 
-    li   $v0, 4
-    la   $a0, msg_nl
+    li   $v0, 4                               # syscall 4 = print_string
+    la   $a0, msg_nl                          # quebra de linha
     syscall
 
     # ---------- Teste memcpy (8 bytes) ----------
-    la   $a0, mem_dst
-    la   $a1, mem_src
-    li   $a2, 8
-    jal  memcpy
+    la   $a0, mem_dst                         # $a0 = &mem_dst (destino)
+    la   $a1, mem_src                         # $a1 = &mem_src (origem)
+    li   $a2, 8                               # $a2 = num = 8
+    jal  memcpy                               # copia 8 bytes
 
-    li   $v0, 4
-    la   $a0, msg_memcpy
+    li   $v0, 4                               # syscall 4 = print_string
+    la   $a0, msg_memcpy                      # imprime rótulo
     syscall
 
-    la   $t0, mem_dst
-    li   $t1, 8
+    la   $t0, mem_dst                         # cursor de leitura
+    li   $t1, 8                               # contador de bytes
 print_bytes:
-    lb   $t2, 0($t0)           # lê byte
+    lb   $t2, 0($t0)                          # lê 1 byte (sign-extended, ok p/ 1..8)
     move $a0, $t2
-    li   $v0, 1                # print_int
+    li   $v0, 1                               # syscall 1 = print_int
     syscall
 
-    addi $t0, $t0, 1
-    addi $t1, $t1, -1
-    bgtz $t1, print_sep
+    addi $t0, $t0, 1                          # avança ponteiro
+    addi $t1, $t1, -1                         # decrementa contador
+    bgtz $t1, print_sep                       # se ainda restam bytes, imprime separador
     j    end_line
 
 print_sep:
-    li   $v0, 4
+    li   $v0, 4                               # syscall 4 = print_string
     la   $a0, sep
     syscall
-    bgtz $t1, print_bytes
+    bgtz $t1, print_bytes                     # volta a imprimir próximo byte
 
 end_line:
-    li   $v0, 4
+    li   $v0, 4                               # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
     # ---------- Teste strcmp: iguais ----------
     # prepara copia = "UFRPE"
-    la   $a0, copia
-    la   $a1, origem
+    la   $a0, copia                            # destino
+    la   $a1, origem                           # fonte
     jal  strcpy
 
-    la   $a0, origem           # str1
-    la   $a1, copia            # str2 (igual)
+    la   $a0, origem                           # str1
+    la   $a1, copia                            # str2 (igual à origem)
     jal  strcmp
-    move $t4, $v0              # salva retorno
+    move $t4, $v0                              # salva retorno de strcmp
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_cmp_eq
     syscall
 
-    move $a0, $t4              # imprime retorno salvo
-    li   $v0, 1
+    move $a0, $t4                              # prepara inteiro de retorno
+    li   $v0, 1                                # syscall 1 = print_int
     syscall
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
     # ---------- Teste strcmp: diferentes ----------
-    la   $a0, origem           # "UFRPE"
-    la   $a1, origem2          # "UFRPa"
+    la   $a0, origem                           # "UFRPE"
+    la   $a1, origem2                          # "UFRPa"
     jal  strcmp
-    move $t5, $v0              # salva retorno
+    move $t5, $v0                              # salva retorno de strcmp
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_cmp_ne
     syscall
 
     move $a0, $t5
-    li   $v0, 1
+    li   $v0, 1                                # syscall 1 = print_int
     syscall
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
@@ -149,61 +152,61 @@ end_line:
     # Caso 1: n=3 -> "UFR" == "UFR" => 0
     la   $a0, origem
     la   $a1, origem2
-    li   $a3, 3                 # n=3
+    li   $a3, 3                                # $a3 = n = 3
     jal  strncmp
-    move $t6, $v0
+    move $t6, $v0                              # salva retorno
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_ncmp3
     syscall
 
     move $a0, $t6
-    li   $v0, 1
+    li   $v0, 1                                # syscall 1 = print_int
     syscall
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
-    # Caso 2: n=5 -> compara até o 5o char (E vs a) => 69-97 = -28
+    # Caso 2: n=5 -> compara até o 5º char (E vs a) => 69 - 97 = -28
     la   $a0, origem
     la   $a1, origem2
-    li   $a3, 5                 # n=5
+    li   $a3, 5                                # $a3 = n = 5
     jal  strncmp
-    move $t7, $v0
+    move $t7, $v0                              # salva retorno
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_ncmp5
     syscall
 
     move $a0, $t7
-    li   $v0, 1
+    li   $v0, 1                                # syscall 1 = print_int
     syscall
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
     # ---------- Teste strcat ----------
     # destino já contém "UFRPE" do teste do strcpy; vamos concatenar "-PE"
-    la   $a0, destino          # dst
-    la   $a1, sufixo           # src "-PE"
+    la   $a0, destino                          # $a0 = dst
+    la   $a1, sufixo                           # $a1 = src "-PE"
     jal  strcat
 
-    li   $v0, 4
-    la   $a0, msg_cat          # "strcat(dst,\"-PE\") -> dst: "
+    li   $v0, 4                                # syscall 4 = print_string
+    la   $a0, msg_cat                          # imprime rótulo do teste
     syscall
 
-    li   $v0, 4
-    la   $a0, destino          # imprime "UFRPE-PE"
+    li   $v0, 4                                # syscall 4 = print_string
+    la   $a0, destino                          # imprime "UFRPE-PE"
     syscall
 
-    li   $v0, 4
+    li   $v0, 4                                # syscall 4 = print_string
     la   $a0, msg_nl
     syscall
 
     # ---------- encerra ----------
-    li   $v0, 10
+    li   $v0, 10                               # syscall 10 = exit
     syscall
 
 # ------------------------------------------------------------
@@ -211,36 +214,36 @@ end_line:
 # Copia bytes de src para dst até (e incluindo) o '\0'.
 # ------------------------------------------------------------
 strcpy:
-    move $t0, $a0              # cursor dst
-    move $t1, $a1              # cursor src
+    move $t0, $a0              # cursor em dst
+    move $t1, $a1              # cursor em src
 copy_loop:
-    lb   $t2, 0($t1)           # t2 = *src
-    sb   $t2, 0($t0)           # *dst = *src
+    lb   $t2, 0($t1)           # t2 = *src (lê 1 byte)
+    sb   $t2, 0($t0)           # *dst = *src (escreve 1 byte)
     addi $t1, $t1, 1           # avança src
     addi $t0, $t0, 1           # avança dst
-    bne  $t2, $zero, copy_loop # continua até copiar '\0'
-    move $v0, $a0              # retorno = dst original
-    jr   $ra
+    bne  $t2, $zero, copy_loop # continua até copiar o '\0'
+    move $v0, $a0              # retorno = endereço original de dst
+    jr   $ra                   # retorna ao chamador
 
 # ------------------------------------------------------------
 # memcpy(a0=dst, a1=src, a2=num) -> v0 = dst
 # Copia exatamente 'num' bytes de src para dst (não para em '\0').
 # ------------------------------------------------------------
 memcpy:
-    move $t0, $a0              # cursor dst
-    move $t1, $a1              # cursor src
-    move $t3, $a2              # contador
-    beq  $t3, $zero, mem_done
+    move $t0, $a0              # cursor em dst
+    move $t1, $a1              # cursor em src
+    move $t3, $a2              # contador restante
+    beq  $t3, $zero, mem_done  # se num==0, nada a fazer
 mem_loop:
-    lb   $t2, 0($t1)
-    sb   $t2, 0($t0)
-    addi $t1, $t1, 1
-    addi $t0, $t0, 1
-    addi $t3, $t3, -1
-    bgtz $t3, mem_loop
+    lb   $t2, 0($t1)           # lê byte de src
+    sb   $t2, 0($t0)           # grava byte em dst
+    addi $t1, $t1, 1           # avança src
+    addi $t0, $t0, 1           # avança dst
+    addi $t3, $t3, -1          # decrementa contador
+    bgtz $t3, mem_loop         # continua enquanto > 0
 mem_done:
-    move $v0, $a0
-    jr   $ra
+    move $v0, $a0              # retorno = endereço original de dst
+    jr   $ra                   # retorna
 
 # ------------------------------------------------------------
 # strcmp(a0=str1, a1=str2) -> v0:
@@ -248,34 +251,34 @@ mem_done:
 # Retorna (byte1 - byte2) no 1º ponto de diferença.
 # ------------------------------------------------------------
 strcmp:
-    move $t0, $a0              # p1
-    move $t1, $a1              # p2
+    move $t0, $a0              # p1 = str1
+    move $t1, $a1              # p2 = str2
 strcmp_loop:
-    lb   $t2, 0($t0)           # c1
-    lb   $t3, 0($t1)           # c2
+    lb   $t2, 0($t0)           # c1 = *p1
+    lb   $t3, 0($t1)           # c2 = *p2
     beq  $t2, $t3, strcmp_next # se iguais, avança
-    sub  $v0, $t2, $t3         # v0 = c1 - c2
-    jr   $ra
+    sub  $v0, $t2, $t3         # v0 = c1 - c2 (negativo/zero/positivo)
+    jr   $ra                   # retorna com o resultado
 strcmp_next:
-    beq  $t2, $zero, strcmp_eq # fim de ambas as strings
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
+    beq  $t2, $zero, strcmp_eq # se chegou em '\0' (e c1==c2), são iguais
+    addi $t0, $t0, 1           # avança p1
+    addi $t1, $t1, 1           # avança p2
     j    strcmp_loop
 strcmp_eq:
-    move $v0, $zero
+    move $v0, $zero            # iguais
     jr   $ra
 
 # ------------------------------------------------------------
 # strncmp(a0=str1, a1=str2, a3=num) -> v0:
-# Compara até num caracteres ou até encontrar '\0' em algum lado.
+# Compara até 'num' caracteres ou até encontrar '\0' em algum lado.
 # Retorna (byte1 - byte2) no 1º ponto de diferença; 0 se iguais
 # nos 'num' caracteres comparados.
 # ------------------------------------------------------------
 strncmp:
-    move $t0, $a0              # p1
-    move $t1, $a1              # p2
-    move $t4, $a3              # num restante
-    beq  $t4, $zero, ncmp_eq   # n==0 => iguais
+    move $t0, $a0              # p1 = str1
+    move $t1, $a1              # p2 = str2
+    move $t4, $a3              # n restante
+    beq  $t4, $zero, ncmp_eq   # n==0 => considera iguais
 ncmp_loop:
     lb   $t2, 0($t0)           # c1
     lb   $t3, 0($t1)           # c2
@@ -284,7 +287,7 @@ ncmp_loop:
     addi $t0, $t0, 1           # avança p1
     addi $t1, $t1, 1           # avança p2
     addi $t4, $t4, -1          # consome 1 caractere
-    bgtz $t4, ncmp_loop        # se ainda resta, continua
+    bgtz $t4, ncmp_loop        # se ainda resta comparar, continua
 ncmp_eq:
     move $v0, $zero            # iguais (até 'num' ou '\0')
     jr   $ra
@@ -295,6 +298,7 @@ ncmp_diff:
 # ------------------------------------------------------------
 # strcat(a0=dst, a1=src) -> v0 = dst
 # Encontra o '\0' de dst e copia src a partir dali, incluindo '\0'.
+# Observação: comportamento indefinido se dst e src sobrepõem memória.
 # ------------------------------------------------------------
 strcat:
     move $t0, $a0              # t0 = cursor em dst
@@ -302,7 +306,7 @@ strcat:
 # acha o fim de dst
 cat_seek:
     lb   $t2, 0($t0)           # lê byte em dst
-    beq  $t2, $zero, cat_copy  # parou no '\0'
+    beq  $t2, $zero, cat_copy  # parou no '\0' -> pronto para copiar src
     addi $t0, $t0, 1           # avança dst
     j    cat_seek
 # copia src (inclui '\0')
@@ -312,5 +316,5 @@ cat_copy:
     addi $t1, $t1, 1           # avança src
     addi $t0, $t0, 1           # avança dst
     bne  $t3, $zero, cat_copy  # até copiar o '\0'
-    move $v0, $a0              # retorno = dst original
+    move $v0, $a0              # retorno = endereço original de dst
     jr   $ra
