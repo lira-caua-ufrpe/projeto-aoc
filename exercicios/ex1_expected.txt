@@ -1,0 +1,9 @@
+strcpy -> dst: UFRPE
+memcpy 8 bytes, mem_dst = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+strcmp("UFRPE","UFRPE") = 0
+strcmp("UFRPE","UFRPa") = -28
+strncmp("UFRPE","UFRPa",3) = 0
+strncmp("UFRPE","UFRPa",5) = -28
+strcat(dst,"-PE") -> dst: UFRPE-PE
+
+-- program is finished running --
