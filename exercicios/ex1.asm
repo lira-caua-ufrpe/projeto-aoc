@@ -6,7 +6,7 @@
 # Atividade: Lista de Exercícios – Questão 1 (string.h)
 # Arquivo: ex1.asm
 # Equipe: OPCODE
-# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas; Lucas Emanuel
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
 # Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
 # Convenções:
