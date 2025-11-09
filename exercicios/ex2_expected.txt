@@ -1,0 +1,49 @@
+============================================================
+Caso 1 — Entrada simples
+Entrada digitada no Keyboard MMIO:
+hugo⏎
+
+Saída esperada no Display MMIO:
+Digite uma linha (ENTER para enviar):
+Voce digitou: HUGO
+Tamanho: 4
+Letras: 4  Digitos: 0
+------------------------------------------------------------
+
+============================================================
+Caso 2 — Espaços no começo/fim e múltiplos espaços internos
+Entrada digitada no Keyboard MMIO:
+__ab__c12__⏎
+(Obs.: "__" representa dois espaços)
+
+Saída esperada no Display MMIO:
+Digite uma linha (ENTER para enviar):
+Voce digitou: AB C12
+Tamanho: 6
+Letras: 3  Digitos: 2
+------------------------------------------------------------
+
+============================================================
+Caso 3 — Somente espaços
+Entrada digitada no Keyboard MMIO:
+____⏎
+(4 espaços e Enter)
+
+Saída esperada no Display MMIO:
+Digite uma linha (ENTER para enviar):
+Voce digitou: 
+Tamanho: 0
+Letras: 0  Digitos: 0
+------------------------------------------------------------
+
+============================================================
+Caso 4 — Letras e dígitos intercalados
+Entrada digitada no Keyboard MMIO:
+a1b2c3⏎
+
+Saída esperada no Display MMIO:
+Digite uma linha (ENTER para enviar):
+Voce digitou: A1B2C3
+Tamanho: 6
+Letras: 3  Digitos: 3
+------------------------------------------------------------
