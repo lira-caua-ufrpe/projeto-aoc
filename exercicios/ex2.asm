@@ -160,15 +160,49 @@ rl_do_back:
     jal   mmio_putc
     j     rl_loop
 
-# armazena char normal (se houver espaço)
+# armazena char normal (se houver espaço) — AGORA com validação
 rl_store:
-    beq   $t2, $zero, rl_loop    # sem espaço -> ignora
-    sb    $t3, 0($t1)            # grava
-    addi  $t1, $t1, 1
-    addi  $t2, $t2, -1
+    beq   $t2, $zero, rl_loop    # sem espaço -> ignora char
+
+    # -------- validação: permite [espaco, 0-9, A-Z, a-z] --------
+    move  $t5, $t3               # t5 = char
+
+    # espaço?
+    li    $t6, 32                # ' '
+    beq   $t5, $t6, rl_ok
+
+    # '0'..'9' ?
+    li    $t6, 48                # '0'
+    blt   $t5, $t6, rl_ignore
+    li    $t6, 57                # '9'
+    ble   $t5, $t6, rl_ok
+
+    # 'A'..'Z' ?
+    li    $t6, 65                # 'A'
+    blt   $t5, $t6, rl_check_lower
+    li    $t6, 90                # 'Z'
+    ble   $t5, $t6, rl_ok
+
+rl_check_lower:
+    # 'a'..'z' ?
+    li    $t6, 97                # 'a'
+    blt   $t5, $t6, rl_ignore
+    li    $t6, 122               # 'z'
+    bgt   $t5, $t6, rl_ignore
+
+    # passou na validação -> ok
+rl_ok:
+    sb    $t3, 0($t1)            # grava no buffer
+    addi  $t1, $t1, 1            # avança cursor
+    addi  $t2, $t2, -1           # consome espaço
     move  $a0, $t3               # eco visual
     jal   mmio_putc
     j     rl_loop
+
+    # não passou -> ignora char
+rl_ignore:
+    j     rl_loop
+
 
 # finaliza string e retorna len
 rl_done:
