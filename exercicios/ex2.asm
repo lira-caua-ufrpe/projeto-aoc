@@ -3,95 +3,197 @@
 # Disciplina: Arquitetura e Organização de Computadores — 2025.2
 # Avaliação: Projetos 1 (PE1) – 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de Exercícios – Questão 2 (TODO)
+# Atividade: Lista de Exercícios – Questão 2 (MMIO)
 # Arquivo: ex2.asm
 # Equipe: OPCODE
 # Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
 # Data de entrega: 13/11/2025 (horário da aula)
 # Apresentação: vídeo no ato da entrega
-# Descrição: Esqueleto base para a Q2 com funções utilitárias de I/O
-#            e template de função + main de testes.
+# Descrição: Echo via MMIO + leitura de linha (Backspace/ENTER)
+#            + normalização para MAIÚSCULAS antes do eco.
 # Convenções:
-#   - Parâmetros em $a0..$a3 | retorno em $v0
-#   - Temporários: $t0..$t9 | Salvos: $s0..$s7 (salvar/restaurar se usados)
+#   - Parâmetros em $a0..$a3 ; retorno em $v0
+#   - Temporários: $t0..$t9 ; $k0/$k1 usados só p/ MMIO
+#   - Funções NÃO-folha salvam $ra na pilha
 #   - PC inicia em 'main' (Settings → Initialize PC to 'main')
 # ============================================================
 
-##############################################################
-#  MMIO setup + echo simples (parte 1)
-##############################################################
+.data
+msg_start:    .asciiz "MMIO pronto. Abra Tools > Keyboard and Display MMIO e clique em 'Connect to MIPS'.\n"
+prompt:       .asciiz "Digite uma linha (ENTER para enviar): "
+echo_label:   .asciiz "Voce digitou: "
+nl:           .asciiz "\n"
+buf_line:     .space 128        # buffer (máx 127 chars + '\0')
 
-.data                          # seção de dados
-msg_start:     .asciiz "MMIO pronto. Digite no Keyboard MMIO (ENTER encerra)\n"
-
-.text                          # seção de código
+.text
 .globl main
 .globl mmio_getc
 .globl mmio_putc
+.globl mmio_writes
+.globl mmio_readline
+.globl str_to_upper_inplace
 
-##############################################################
+# ------------------------------------------------------------
 # Constantes MMIO (MARS)
-#  Keyboard Receiver Control  : 0xFFFF0000 (bit0=1 => tem byte)
-#  Keyboard Receiver Data     : 0xFFFF0004 (leia 1 byte)
-#  Display Transmitter Control: 0xFFFF0008 (bit0=1 => pode enviar)
-#  Display Transmitter Data   : 0xFFFF000C (escreva 1 byte)
-##############################################################
-# Usaremos $k0/$k1 como temporários de MMIO (convenção “kernel”).
-# Em userland real, evitaria, mas no MARS é comum para MMIO.
-##############################################################
+# Keyboard RC : 0xFFFF0000 (bit0=1 => há byte)
+# Keyboard RD : 0xFFFF0004 (ler 1 byte)
+# Display  TC : 0xFFFF0008 (bit0=1 => pronto)
+# Display  TD : 0xFFFF000C (escrever 1 byte)
+# ------------------------------------------------------------
 
-# ------------------------------------------------------------
-# main: imprime mensagem (syscall) e faz eco MMIO até ENTER
-# ------------------------------------------------------------
+# ============================== main ==============================
 main:
-    # (só para informar no console)
-    li   $v0, 4                     # print_string
+    # Dica no console
+    li   $v0, 4                 # print_string
     la   $a0, msg_start
     syscall
 
-eco_loop:
-    jal  mmio_getc                  # v0 = caractere lido (bloqueante)
-    move $t0, $v0                   # salva char
+    # Prompt no Display MMIO
+    la   $a0, prompt
+    jal  mmio_writes
 
-    # Se ENTER ('\n' = 10), encerra
-    li   $t1, 10
-    beq  $t0, $t1, fim
+    # Ler linha (até ENTER), guardar em buf_line
+    la   $a0, buf_line          # &buf
+    li   $a1, 127               # maxlen (sem contar '\0')
+    jal  mmio_readline          # v0 = len
 
-    # eco no display
-    move $a0, $t0
+    # Converte in-place para MAIÚSCULAS
+    la   $a0, buf_line
+    jal  str_to_upper_inplace
+
+    # \n no Display
+    li   $a0, 10                # '\n'
     jal  mmio_putc
-    j    eco_loop
 
-fim:
-    li   $v0, 10                    # exit
+    # Eco da linha (agora MAIÚSCULA)
+    la   $a0, echo_label
+    jal  mmio_writes
+    la   $a0, buf_line
+    jal  mmio_writes
+
+    # sair
+    li   $v0, 10                # exit
     syscall
 
-# ------------------------------------------------------------
-# mmio_getc -> v0=byte
-# Bloqueia até haver um byte no Keyboard MMIO (bit0 do RC=1)
-# ------------------------------------------------------------
+# ========================== mmio_getc (folha) =====================
+# v0=byte (bloqueante)
 mmio_getc:
-    li   $k0, 0xFFFF0000            # $k0 = addr Receiver Control
+    li   $k0, 0xFFFF0000        # RC
 mmio_getc_wait:
-    lw   $k1, 0($k0)                # lê RC
-    andi $k1, $k1, 1                # isReady? (bit0)
-    beq  $k1, $zero, mmio_getc_wait # se 0, espera
-
-    li   $k0, 0xFFFF0004            # addr Receiver Data
-    lb   $v0, 0($k0)                # lê 1 byte -> v0
+    lw   $k1, 0($k0)
+    andi $k1, $k1, 1
+    beq  $k1, $zero, mmio_getc_wait
+    li   $k0, 0xFFFF0004        # RD
+    lb   $v0, 0($k0)
     jr   $ra
 
-# ------------------------------------------------------------
-# mmio_putc(a0=byte)
-# Bloqueia até o Display MMIO estar pronto (bit0 do TC=1)
-# ------------------------------------------------------------
+# ========================== mmio_putc (folha) =====================
+# a0=byte
 mmio_putc:
-    li   $k0, 0xFFFF0008            # $k0 = addr Transmitter Control
+    li   $k0, 0xFFFF0008        # TC
 mmio_putc_wait:
-    lw   $k1, 0($k0)                # lê TC
-    andi $k1, $k1, 1                # pronto? (bit0)
-    beq  $k1, $zero, mmio_putc_wait # se 0, espera
+    lw   $k1, 0($k0)
+    andi $k1, $k1, 1
+    beq  $k1, $zero, mmio_putc_wait
+    li   $k0, 0xFFFF000C        # TD
+    sb   $a0, 0($k0)
+    jr   $ra
 
-    li   $k0, 0xFFFF000C            # addr Transmitter Data
-    sb   $a0, 0($k0)                # escreve 1 byte
+# ========================= mmio_writes (não-folha) ================
+# a0=addr da string '\0'-terminada (imprime no Display MMIO)
+mmio_writes:
+    addiu $sp, $sp, -8          # salva $ra e $t0
+    sw    $ra, 4($sp)
+    sw    $t0, 0($sp)
+
+    move  $t0, $a0
+ws_loop:
+    lb    $t1, 0($t0)
+    beq   $t1, $zero, ws_end
+    move  $a0, $t1
+    jal   mmio_putc
+    addi  $t0, $t0, 1
+    j     ws_loop
+ws_end:
+    lw    $t0, 0($sp)
+    lw    $ra, 4($sp)
+    addiu $sp, $sp, 8
+    jr    $ra
+
+# ======================== mmio_readline (não-folha) ===============
+# a0=buf, a1=maxlen  -> v0=len (sem contar '\n')
+# Trata Backspace (8) e finaliza em '\n' (10), gravando '\0'.
+mmio_readline:
+    addiu $sp, $sp, -8          # salva $ra e $t0
+    sw    $ra, 4($sp)
+    sw    $t0, 0($sp)
+
+    move  $t0, $a0               # início do buffer
+    move  $t1, $a0               # cursor
+    move  $t2, $a1               # espaço restante
+
+rl_loop:
+    jal   mmio_getc              # v0 = char
+    move  $t3, $v0
+
+    # ENTER?
+    li    $t4, 10
+    beq   $t3, $t4, rl_done
+
+    # BACKSPACE?
+    li    $t4, 8
+    bne   $t3, $t4, rl_store
+
+    # se backspace e há algo no buffer, apaga
+    bne   $t1, $t0, rl_do_back
+    j     rl_loop                # buffer vazio: ignora backspace
+
+rl_do_back:
+    addi  $t1, $t1, -1           # volta 1
+    addi  $t2, $t2, 1            # recupera espaço
+    # apaga no display: '\b', ' ', '\b'
+    li    $a0, 8                 # '\b'
+    jal   mmio_putc
+    li    $a0, 32                # ' '
+    jal   mmio_putc
+    li    $a0, 8                 # '\b'
+    jal   mmio_putc
+    j     rl_loop
+
+# armazena char normal (se houver espaço)
+rl_store:
+    beq   $t2, $zero, rl_loop    # sem espaço -> ignora
+    sb    $t3, 0($t1)            # grava
+    addi  $t1, $t1, 1
+    addi  $t2, $t2, -1
+    move  $a0, $t3               # eco visual
+    jal   mmio_putc
+    j     rl_loop
+
+# finaliza string e retorna len
+rl_done:
+    sb    $zero, 0($t1)          # terminador
+    subu  $v0, $t1, $t0          # len
+    lw    $t0, 0($sp)
+    lw    $ra, 4($sp)
+    addiu $sp, $sp, 8
+    jr    $ra
+
+# ===================== str_to_upper_inplace (folha) ===============
+# a0=buf -> converte 'a'..'z' -> 'A'..'Z' até '\0'
+str_to_upper_inplace:
+    move $t0, $a0                 # t0 = ptr
+up_loop:
+    lb   $t1, 0($t0)              # lê char
+    beq  $t1, $zero, up_end       # fim?
+    li   $t2, 97                  # 'a'
+    li   $t3, 122                 # 'z'
+    blt  $t1, $t2, up_store       # < 'a' => mantém
+    bgt  $t1, $t3, up_store       # > 'z' => mantém
+    addi $t1, $t1, -32            # 'a'..'z' -> 'A'..'Z'
+up_store:
+    sb   $t1, 0($t0)              # grava
+    addi $t0, $t0, 1              # avança
+    j    up_loop
+up_end:
     jr   $ra
