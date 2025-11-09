@@ -10,13 +10,13 @@
 # Data de entrega: 13/11/2025 (horário da aula)
 # Apresentação: vídeo no ato da entrega
 # Descrição: Echo via MMIO + leitura de linha (Backspace/ENTER)
-#            + normalização MAIÚSCULAS + Tamanho/Letras/Dígitos
-#            + bloqueio de múltiplos espaços consecutivos.
+#            + validação, bloqueio de espaço duplo, rtrim à direita,
+#            + normalização MAIÚSCULAS + Tamanho/Letras/Dígitos.
 # Convenções:
 #   - Parâmetros em $a0..$a3 ; retorno em $v0
 #   - Temporários: $t0..$t9 ; $k0/$k1 usados só p/ MMIO
 #   - Funções NÃO-folha salvam $ra na pilha
-#   - PC inicia em 'main' (Settings → Initialize PC to 'main')
+#   - PC inicia em 'main' (Settings ? Initialize PC to 'main')
 # ============================================================
 
 .data
@@ -43,6 +43,7 @@ digits_count:  .word 0
 .globl mmio_readline
 .globl str_to_upper_inplace
 .globl u32_to_dec
+.globl rtrim_spaces
 
 # ------------------------------------------------------------
 # Constantes MMIO (MARS)
@@ -66,8 +67,14 @@ main:
     # Ler linha (até ENTER), guardar em buf_line
     la   $a0, buf_line
     li   $a1, 127
-    jal  mmio_readline          # v0 = len
+    jal  mmio_readline          # v0 = len (com espaços que entraram)
     move $t8, $v0               # guarda len
+
+    # --- rtrim: remove espaços à direita e atualiza len ---
+    la   $a0, buf_line          # buf
+    move $a1, $t8               # len atual
+    jal  rtrim_spaces           # v0 = novo len sem espaços finais
+    move $t8, $v0               # len atualizado
 
     # Converte in-place para MAIÚSCULAS
     la   $a0, buf_line
@@ -77,7 +84,7 @@ main:
     li   $a0, 10
     jal  mmio_putc
 
-    # Eco da linha (agora MAIÚSCULA)
+    # Eco da linha (agora MAIÚSCULA e sem espaços à direita)
     la   $a0, echo_label
     jal  mmio_writes
     la   $a0, buf_line
@@ -165,7 +172,7 @@ ws_end:
 # Regras:
 #  - Backspace (8) funciona (remove do buffer e do Display)
 #  - Só aceita: espaço, dígitos, letras
-#  - Bloqueia ESPAÇO DUPLO consecutivo
+#  - Bloqueia ESPAÇO DUPLO consecutivo durante a digitação
 #  - Atualiza contadores (letras/dígitos) e ajusta em Backspace
 #  - Grava '\0' ao final
 mmio_readline:
@@ -214,7 +221,7 @@ chk_letter_rm:
 chk_lower_rm:
     # 'a'..'z' ?
     li    $t5, 97               # 'a'
-    blt   $t4, $t5, do_backspace   # não é letra/dígito
+    blt   $t4, $t5, do_backspace
     li    $t5, 122              # 'z'
     bgt   $t4, $t5, do_backspace
 dec_letter:
@@ -350,6 +357,38 @@ up_store:
     addi $t0, $t0, 1
     j    up_loop
 up_end:
+    jr   $ra
+
+# ========================== rtrim_spaces (folha) ==================
+# a0 = buf, a1 = len  -> v0 = novo_len (sem espaços à direita)
+# Se len=0, retorna 0. Caso contrário, anda do fim para trás
+# enquanto houver ' ' e ajusta o '\0' na nova posição final.
+rtrim_spaces:
+    move $t0, $a0           # base
+    move $t1, $a1           # len
+    beq  $t1, $zero, rt_zero
+
+    addiu $t1, $t1, -1      # idx = len-1
+    addu  $t2, $t0, $t1     # ptr = base + idx
+rt_loop:
+    bltz $t1, rt_zero       # tudo era espaço -> vira len=0
+    lb   $t3, 0($t2)
+    li   $t4, 32            # ' '
+    bne  $t3, $t4, rt_done
+    addiu $t1, $t1, -1
+    addiu $t2, $t2, -1
+    j    rt_loop
+
+rt_done:
+    addiu $t1, $t1, 1       # novo_len = idx+1
+    addu  $t5, $t0, $t1
+    sb   $zero, 0($t5)      # buf[novo_len] = '\0'
+    move $v0, $t1
+    jr   $ra
+
+rt_zero:
+    sb   $zero, 0($t0)      # buf[0] = '\0'
+    move $v0, $zero
     jr   $ra
 
 # ========================== u32_to_dec (folha) ====================
