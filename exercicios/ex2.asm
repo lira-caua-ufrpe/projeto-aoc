@@ -1,69 +1,97 @@
 # ============================================================
-# UFRPE – Projetos 1 (PE1) – 1ª VA
-# Professor: Vitor
-# Atividade: Lista – Questão 2 (MMIO Echo com polling)
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 2 (TODO)
 # Arquivo: ex2.asm
-# Grupo: <nomes completos>
-# Descrição:
-#   Lê caracteres do Keyboard MMIO e imprime imediatamente no
-#   Display MMIO usando memória mapeada (polling, sem interrupções).
-#   Pressione ESC (27) para encerrar.
-# Referência: Apêndice A.8 (Hennessy & Patterson)
-# Endereços MMIO (MARS):
-#   0xFFFF0000  Keyboard control   (bit0 = 1 -> caractere disponível)
-#   0xFFFF0004  Keyboard data      (byte baixo = ASCII)
-#   0xFFFF0008  Display control    (bit0 = 1 -> pronto p/ transmitir)
-#   0xFFFF000C  Display data       (escrever ASCII no byte baixo)
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Esqueleto base para a Q2 com funções utilitárias de I/O
+#            e template de função + main de testes.
+# Convenções:
+#   - Parâmetros em $a0..$a3 | retorno em $v0
+#   - Temporários: $t0..$t9 | Salvos: $s0..$s7 (salvar/restaurar se usados)
+#   - PC inicia em 'main' (Settings → Initialize PC to 'main')
 # ============================================================
 
-.data
-msg_start: .asciiz "MMIO Echo iniciado (ESC para sair)\n"
+##############################################################
+#  MMIO setup + echo simples (parte 1)
+##############################################################
 
-.text
+.data                          # seção de dados
+msg_start:     .asciiz "MMIO pronto. Digite no Keyboard MMIO (ENTER encerra)\n"
+
+.text                          # seção de código
 .globl main
+.globl mmio_getc
+.globl mmio_putc
 
-# Constantes (endereços/máscaras)
-# Usamos 'li' para carregar endereços imediatos de 32 bits.
+##############################################################
+# Constantes MMIO (MARS)
+#  Keyboard Receiver Control  : 0xFFFF0000 (bit0=1 => tem byte)
+#  Keyboard Receiver Data     : 0xFFFF0004 (leia 1 byte)
+#  Display Transmitter Control: 0xFFFF0008 (bit0=1 => pode enviar)
+#  Display Transmitter Data   : 0xFFFF000C (escreva 1 byte)
+##############################################################
+# Usaremos $k0/$k1 como temporários de MMIO (convenção “kernel”).
+# Em userland real, evitaria, mas no MARS é comum para MMIO.
+##############################################################
+
+# ------------------------------------------------------------
+# main: imprime mensagem (syscall) e faz eco MMIO até ENTER
+# ------------------------------------------------------------
 main:
-    # Mensagem inicial (via syscall só uma vez, ok para instrução)
-    li   $v0, 4
+    # (só para informar no console)
+    li   $v0, 4                     # print_string
     la   $a0, msg_start
     syscall
 
-    li   $t7, 0x00000001       # MASK bit0 (READY)
-    li   $t6, 0x0000001B       # ASCII ESC (27) -> sair
+eco_loop:
+    jal  mmio_getc                  # v0 = caractere lido (bloqueante)
+    move $t0, $v0                   # salva char
 
-    # Endereços MMIO
-    li   $t0, 0xFFFF0000       # KBD_CTRL
-    li   $t1, 0xFFFF0004       # KBD_DATA
-    li   $t2, 0xFFFF0008       # DSP_CTRL
-    li   $t3, 0xFFFF000C       # DSP_DATA
+    # Se ENTER ('\n' = 10), encerra
+    li   $t1, 10
+    beq  $t0, $t1, fim
 
-echo_loop:
-    # -------- Espera caractere do teclado (polling) --------
-kbd_poll:
-    lw   $t4, 0($t0)           # lê Keyboard Control
-    and  $t4, $t4, $t7         # isola bit0 (ready?)
-    beq  $t4, $zero, kbd_poll  # 0 -> ainda não chegou, continua
+    # eco no display
+    move $a0, $t0
+    jal  mmio_putc
+    j    eco_loop
 
-    # Leu: pegar dado do teclado
-    lw   $t5, 0($t1)           # word, ASCII no byte menos significativo
-    andi $t5, $t5, 0x00FF      # zera bytes altos -> só o ASCII
-
-    # Sair se ESC
-    beq  $t5, $t6, sair
-
-    # -------- Espera display pronto (polling) --------------
-dsp_poll:
-    lw   $t4, 0($t2)           # lê Display Control
-    and  $t4, $t4, $t7         # bit0 pronto?
-    beq  $t4, $zero, dsp_poll  # não pronto -> espera
-
-    # Envia caractere para o display
-    sw   $t5, 0($t3)           # escreve ASCII (byte baixo considerado)
-
-    j    echo_loop             # volta para próximo caractere
-
-sair:
-    li   $v0, 10               # exit
+fim:
+    li   $v0, 10                    # exit
     syscall
+
+# ------------------------------------------------------------
+# mmio_getc -> v0=byte
+# Bloqueia até haver um byte no Keyboard MMIO (bit0 do RC=1)
+# ------------------------------------------------------------
+mmio_getc:
+    li   $k0, 0xFFFF0000            # $k0 = addr Receiver Control
+mmio_getc_wait:
+    lw   $k1, 0($k0)                # lê RC
+    andi $k1, $k1, 1                # isReady? (bit0)
+    beq  $k1, $zero, mmio_getc_wait # se 0, espera
+
+    li   $k0, 0xFFFF0004            # addr Receiver Data
+    lb   $v0, 0($k0)                # lê 1 byte -> v0
+    jr   $ra
+
+# ------------------------------------------------------------
+# mmio_putc(a0=byte)
+# Bloqueia até o Display MMIO estar pronto (bit0 do TC=1)
+# ------------------------------------------------------------
+mmio_putc:
+    li   $k0, 0xFFFF0008            # $k0 = addr Transmitter Control
+mmio_putc_wait:
+    lw   $k1, 0($k0)                # lê TC
+    andi $k1, $k1, 1                # pronto? (bit0)
+    beq  $k1, $zero, mmio_putc_wait # se 0, espera
+
+    li   $k0, 0xFFFF000C            # addr Transmitter Data
+    sb   $a0, 0($k0)                # escreve 1 byte
+    jr   $ra
