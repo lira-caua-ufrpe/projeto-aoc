@@ -10,13 +10,15 @@
 # Data de entrega: 13/11/2025 (horário da aula)
 # Apresentação: vídeo no ato da entrega
 # Descrição: Echo via MMIO + leitura de linha (Backspace/ENTER)
-#            + validação, bloqueio de espaço duplo, rtrim à direita,
-#            + normalização MAIÚSCULAS + Tamanho/Letras/Dígitos.
+#            + validação, bloqueio de espaço duplo na digitação,
+#            + normalização de espaços (ltrim + colapso + rtrim),
+#            + UPPERCASE, tamanho, #letras e #dígitos.
 # Convenções:
 #   - Parâmetros em $a0..$a3 ; retorno em $v0
 #   - Temporários: $t0..$t9 ; $k0/$k1 usados só p/ MMIO
 #   - Funções NÃO-folha salvam $ra na pilha
-#   - PC inicia em 'main' (Settings ? Initialize PC to 'main')
+#   - PC padrão: 'main' (Settings → Initialize PC to 'main')
+#   - Extra: 'main_echo' para versão minimalista (eco infinito)
 # ============================================================
 
 .data
@@ -37,13 +39,14 @@ digits_count:  .word 0
 
 .text
 .globl main
+.globl main_echo
 .globl mmio_getc
 .globl mmio_putc
 .globl mmio_writes
 .globl mmio_readline
 .globl str_to_upper_inplace
 .globl u32_to_dec
-.globl rtrim_spaces
+.globl normalize_spaces
 
 # ------------------------------------------------------------
 # Constantes MMIO (MARS)
@@ -67,13 +70,13 @@ main:
     # Ler linha (até ENTER), guardar em buf_line
     la   $a0, buf_line
     li   $a1, 127
-    jal  mmio_readline          # v0 = len (com espaços que entraram)
+    jal  mmio_readline          # v0 = len lido (pré-normalização)
     move $t8, $v0               # guarda len
 
-    # --- rtrim: remove espaços à direita e atualiza len ---
+    # Normaliza espaços: ltrim + colapso internos + rtrim
     la   $a0, buf_line          # buf
     move $a1, $t8               # len atual
-    jal  rtrim_spaces           # v0 = novo len sem espaços finais
+    jal  normalize_spaces       # v0 = novo len normalizado
     move $t8, $v0               # len atualizado
 
     # Converte in-place para MAIÚSCULAS
@@ -84,7 +87,7 @@ main:
     li   $a0, 10
     jal  mmio_putc
 
-    # Eco da linha (agora MAIÚSCULA e sem espaços à direita)
+    # Eco da linha (normalizada + MAIÚSCULA)
     la   $a0, echo_label
     jal  mmio_writes
     la   $a0, buf_line
@@ -124,6 +127,15 @@ main:
     # sair
     li   $v0, 10
     syscall
+
+# ====================== main_echo (eco minimalista) =================
+# Inicie o PC aqui se quiser demonstrar apenas o eco contínuo.
+main_echo:
+echo_loop:
+    jal  mmio_getc
+    move $a0, $v0
+    jal  mmio_putc
+    j    echo_loop
 
 # ========================== mmio_getc (folha) =====================
 mmio_getc:
@@ -172,7 +184,7 @@ ws_end:
 # Regras:
 #  - Backspace (8) funciona (remove do buffer e do Display)
 #  - Só aceita: espaço, dígitos, letras
-#  - Bloqueia ESPAÇO DUPLO consecutivo durante a digitação
+#  - Bloqueia ESPAÇO DUPLO na digitação
 #  - Atualiza contadores (letras/dígitos) e ajusta em Backspace
 #  - Grava '\0' ao final
 mmio_readline:
@@ -184,8 +196,8 @@ mmio_readline:
     move  $t1, $a0              # cursor
     move  $t2, $a1              # espaço restante
 
-    move  $t8, $zero            # letters_count (em registrador)
-    move  $t9, $zero            # digits_count  (em registrador)
+    move  $t8, $zero            # letters_count
+    move  $t9, $zero            # digits_count
     move  $t7, $zero            # last_is_space flag (0/1)
 
 rl_loop:
@@ -202,24 +214,21 @@ rl_loop:
 
     # se backspace e há algo no buffer, ajustar contadores e apagar
     beq   $t1, $t0, rl_loop     # buffer vazio -> ignora
-    lb    $t4, -1($t1)          # último char no buffer (antes de apagar)
+    lb    $t4, -1($t1)          # último char no buffer
 
     # decrementar contadores conforme o char removido
-    # dígito?
     li    $t5, 48               # '0'
     blt   $t4, $t5, chk_letter_rm
     li    $t5, 57               # '9'
     ble   $t4, $t5, dec_digit
 
 chk_letter_rm:
-    # 'A'..'Z' ?
     li    $t5, 65               # 'A'
     blt   $t4, $t5, chk_lower_rm
     li    $t5, 90               # 'Z'
     ble   $t4, $t5, dec_letter
 
 chk_lower_rm:
-    # 'a'..'z' ?
     li    $t5, 97               # 'a'
     blt   $t4, $t5, do_backspace
     li    $t5, 122              # 'z'
@@ -239,7 +248,7 @@ do_backspace:
     lb    $t6, -1($t1)
     li    $t5, 32               # ' '
     beq   $t6, $t5, set_space_flag
-    move  $t7, $zero            # last_is_space = 0
+    move  $t7, $zero
     j     erase_display
 set_space_flag:
     li    $t7, 1
@@ -285,7 +294,6 @@ chk_lower:
     blt   $t5, $t6, rl_ignore
     li    $t6, 122                 # 'z'
     bgt   $t5, $t6, rl_ignore
-    # é letra minúscula
     j     accept_letter
 
 chk_double_space:
@@ -359,37 +367,85 @@ up_store:
 up_end:
     jr   $ra
 
-# ========================== rtrim_spaces (folha) ==================
-# a0 = buf, a1 = len  -> v0 = novo_len (sem espaços à direita)
-# Se len=0, retorna 0. Caso contrário, anda do fim para trás
-# enquanto houver ' ' e ajusta o '\0' na nova posição final.
-rtrim_spaces:
-    move $t0, $a0           # base
-    move $t1, $a1           # len
-    beq  $t1, $zero, rt_zero
+# ===================== normalize_spaces (folha) ===================
+# a0=buf, a1=len -> v0 = novo_len
+# Remove espaços iniciais, colapsa múltiplos internos e remove os finais.
+# Implementação: dois ponteiros (read/write) + flag last_is_space.
+normalize_spaces:
+    move  $t0, $a0        # base
+    move  $t1, $a1        # len
+    move  $t2, $zero      # read index
+    move  $t3, $zero      # write index
+    move  $t7, $zero      # last_is_space = 0
 
-    addiu $t1, $t1, -1      # idx = len-1
-    addu  $t2, $t0, $t1     # ptr = base + idx
-rt_loop:
-    bltz $t1, rt_zero       # tudo era espaço -> vira len=0
-    lb   $t3, 0($t2)
-    li   $t4, 32            # ' '
-    bne  $t3, $t4, rt_done
-    addiu $t1, $t1, -1
-    addiu $t2, $t2, -1
-    j    rt_loop
+    beq   $t1, $zero, norm_done_zero
 
-rt_done:
-    addiu $t1, $t1, 1       # novo_len = idx+1
-    addu  $t5, $t0, $t1
-    sb   $zero, 0($t5)      # buf[novo_len] = '\0'
-    move $v0, $t1
-    jr   $ra
+    # pular espaços à esquerda
+norm_skip_lead:
+    beq   $t2, $t1, norm_maybe_zero
+    addu  $t4, $t0, $t2
+    lb    $t5, 0($t4)
+    li    $t6, 32         # ' '
+    bne   $t5, $t6, norm_loop_start
+    addi  $t2, $t2, 1
+    j     norm_skip_lead
 
-rt_zero:
-    sb   $zero, 0($t0)      # buf[0] = '\0'
-    move $v0, $zero
-    jr   $ra
+norm_maybe_zero:
+    # string era só espaços
+    sb    $zero, 0($t0)
+    move  $v0, $zero
+    jr    $ra
+
+# varre do primeiro não-espaço até o fim
+norm_loop_start:
+    # read em t2, write em t3
+norm_loop:
+    beq   $t2, $t1, norm_end
+    addu  $t4, $t0, $t2
+    lb    $t5, 0($t4)     # c = buf[read]
+    li    $t6, 32
+    beq   $t5, $t6, norm_space
+
+    # não-espaço
+    addu  $t9, $t0, $t3
+    sb    $t5, 0($t9)     # buf[write] = c
+    addi  $t3, $t3, 1
+    move  $t7, $zero      # last_is_space = 0
+    addi  $t2, $t2, 1
+    j     norm_loop
+
+norm_space:
+    # espaço: só escreve se last_is_space==0
+    bne   $t7, $zero, norm_skip_space
+    # escrever um único espaço
+    addu  $t9, $t0, $t3
+    sb    $t6, 0($t9)     # ' '
+    addi  $t3, $t3, 1
+    li    $t7, 1          # last_is_space = 1
+norm_skip_space:
+    addi  $t2, $t2, 1
+    j     norm_loop
+
+norm_end:
+    # remover espaço final, se existir
+    beq   $t3, $zero, norm_done_zero
+    addi  $t8, $t3, -1
+    addu  $t9, $t0, $t8
+    lb    $t5, 0($t9)
+    li    $t6, 32
+    bne   $t5, $t6, norm_finish
+    addi  $t3, $t3, -1
+
+norm_finish:
+    addu  $t9, $t0, $t3
+    sb    $zero, 0($t9)   # terminador
+    move  $v0, $t3        # novo_len
+    jr    $ra
+
+norm_done_zero:
+    sb    $zero, 0($t0)
+    move  $v0, $zero
+    jr    $ra
 
 # ========================== u32_to_dec (folha) ====================
 # a0 = valor >= 0 ; a1 = destino (char*)
