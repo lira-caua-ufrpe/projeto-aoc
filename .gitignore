@@ -1,0 +1,13 @@
+# SO
+.DS_Store
+Thumbs.db
+
+# IDE/editores
+.vscode/
+.idea/
+*.iml
+
+# temporários
+*.log
+*.tmp
+*.swp
