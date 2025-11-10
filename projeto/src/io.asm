@@ -3,13 +3,16 @@
 .text
 .globl print_str
 .globl read_line
+.globl strip_line_end
 
 # ------------------------------------------------------------
 # print_str(a0=addr) -> imprime string '\0'-terminada (syscall 4)
 # ------------------------------------------------------------
 print_str:
+    beq  $a0, $zero, print_str_end
     li   $v0, 4          # print_string
     syscall
+print_str_end:
     jr   $ra
 
 # ------------------------------------------------------------
@@ -52,8 +55,7 @@ RL_NEWLINE:
     j     RL_CLEANUP
 
 RL_END:
-    # terminou sem '\n' (buffer pode ter chegado ao limite)
-    # v0 já contém o len contado
+    # terminou sem '\n'
     nop
 
 RL_CLEANUP:
@@ -65,3 +67,51 @@ RL_CLEANUP:
     lw    $ra, 16($sp)
     addiu $sp, $sp, 20
     jr    $ra
+
+# ------------------------------------------------------------
+# strip_line_end(a0=buf) -> v0=len
+# Remove \n \r espaço e \t à direita; retorna novo comprimento.
+# ------------------------------------------------------------
+strip_line_end:
+    beq  $a0, $zero, sle_empty
+
+    move $t0, $a0              # t0 = ptr = buf
+
+# encontra o '\0'
+sle_scan:
+    lb   $t1, 0($t0)
+    beq  $t1, $zero, sle_at_end
+    addi $t0, $t0, 1
+    j    sle_scan
+
+# t0 aponta para o '\0' -> último índice real é t0-1
+sle_at_end:
+    addi $t0, $t0, -1
+    blt  $t0, $a0, sle_empty
+
+# apaga enquanto for \n \r ' ' \t
+sle_trim_loop:
+    blt  $t0, $a0, sle_empty
+    lb   $t1, 0($t0)
+    li   $t2, 10
+    beq  $t1, $t2, sle_wipe
+    li   $t2, 13
+    beq  $t1, $t2, sle_wipe
+    li   $t2, 32
+    beq  $t1, $t2, sle_wipe
+    li   $t2, 9
+    bne  $t1, $t2, sle_done
+sle_wipe:
+    sb   $zero, 0($t0)
+    addi $t0, $t0, -1
+    j    sle_trim_loop
+
+sle_done:
+    subu $v0, $t0, $a0
+    addiu $v0, $v0, 1
+    jr   $ra
+
+sle_empty:
+    sb   $zero, 0($a0)
+    move $v0, $zero
+    jr   $ra
