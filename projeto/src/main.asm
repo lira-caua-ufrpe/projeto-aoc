@@ -1,4 +1,4 @@
-# main.asm — laço do shell (banner, help, exit)
+# main.asm — laço do shell (banner, help, exit + conta_cadastrar)
 
 .text
 .globl main
@@ -13,29 +13,26 @@ main_loop:
     la   $a0, inp_buf
     li   $a1, 255
     jal  read_line
-    # len está em v0 (se precisar depois)
+    # len está em v0 (se precisar)
 
-    # --- dispatch básico ---
-    # if (strcmp(inp_buf, "help")==0) -> print help
+    # tenta tratar conta_cadastrar-...
+    la   $a0, inp_buf
+    jal  handle_conta_cadastrar
+    bne  $v0, $zero, main_loop     # se tratou, volta pro banner
+
+    # if (strcmp(inp_buf, "help")==0)
     la   $a0, inp_buf
     la   $a1, str_help
     jal  strcmp
     beq  $v0, $zero, do_help
 
-    # if (strcmp(inp_buf, "exit")==0) -> sair
+    # if (strcmp(inp_buf, "exit")==0)
     la   $a0, inp_buf
     la   $a1, str_exit
     jal  strcmp
     beq  $v0, $zero, do_exit
 
-    # futuro: checar prefixo "conta_cadastrar-"
-    la   $a0, inp_buf
-    la   $a1, prefix_conta
-    li   $a2, 17                 # tamanho de "conta_cadastrar-"
-    jal  strncmp
-    beq  $v0, $zero, not_implemented
-
-    # caso default
+    # default: comando inválido
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop
@@ -45,20 +42,8 @@ do_help:
     jal  print_str
     j    main_loop
 
-not_implemented:
-    la   $a0, msg_stub
-    jal  print_str
-    j    main_loop
-
 do_exit:
     la   $a0, msg_bye
     jal  print_str
-    li   $v0, 10
+    li   $v0, 10     # exit
     syscall
-
-# --- strings internas do main ---
-.data
-str_help:       .asciiz "help"
-str_exit:       .asciiz "exit"
-prefix_conta:   .asciiz "conta_cadastrar-"
-msg_stub:       .asciiz "Comando reconhecido, implementacao em andamento...\n"
