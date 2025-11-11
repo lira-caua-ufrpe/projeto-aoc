@@ -1,4 +1,4 @@
-# main.asm — laço do shell (R1/R2/R3/R4)
+# main.asm ï¿½ laï¿½o do shell (R1/R2/R3/R4)
 .include "data.asm"
 .include "io.asm"
 .include "strings.asm"
@@ -15,12 +15,12 @@ main_loop:
     la   $a0, banner
     jal  print_str
 
-    # 2) lê linha (bloqueia aqui enquanto o usuário digita)
+    # 2) lï¿½ linha (bloqueia aqui enquanto o usuï¿½rio digita)
     la   $a0, inp_buf
     li   $a1, 255
     jal  read_line
 
-    # 2.1) R4 — agora sim, contabiliza todo o tempo que passou enquanto digitava
+    # 2.1) R4 ï¿½ agora sim, contabiliza todo o tempo que passou enquanto digitava
     jal  tick_datetime
 
     # 3) strip

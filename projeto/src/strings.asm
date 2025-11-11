@@ -1,9 +1,9 @@
-# strings.asm — utilitários básicos de strings para o projeto
-# Convenções usadas no projeto:
+# strings.asm â€” utilitÃ¡rios bÃ¡sicos de strings para o projeto
+# ConvenÃ§Ãµes usadas no projeto:
 #   strcmp(a0=s1, a1=s2) -> v0: 0 se iguais; <0 se s1<s2; >0 se s1>s2
-#   strncmp(a0=s1, a1=s2, a3=n) -> idem, comparando até n chars
+#   strncmp(a0=s1, a1=s2, a3=n) -> idem, comparando atÃ© n chars
 #   strcpy(a0=src, a1=dst) -> v0=dst (copia incluindo '\0')
-#   is_all_digits_fixed(a0=addr, a1=len) -> v0=1 se todos '0'..'9', senão 0
+#   is_all_digits_fixed(a0=addr, a1=len) -> v0=1 se todos '0'..'9', senÃ£o 0
 
 .text
 .globl strcmp
@@ -28,12 +28,12 @@ sc_eq:
     move $v0, $zero
     jr   $ra
 sc_diff:
-    subu $v0, $t0, $t1      # sinaliza diferença
+    subu $v0, $t0, $t1      # sinaliza diferenÃ§a
     jr   $ra
 
 # ------------------------------------------------------------
 # strncmp(a0=s1, a1=s2, a3=n) -> v0
-# compara até n caracteres (ou até achar '\0' em algum)
+# compara atÃ© n caracteres (ou atÃ© achar '\0' em algum)
 # ------------------------------------------------------------
 strncmp:
     move $t2, $a3           # t2 = n restante
@@ -42,7 +42,7 @@ stn_loop:
     lb   $t0, 0($a0)        # c1
     lb   $t1, 0($a1)        # c2
     bne  $t0, $t1, stn_diff
-    beq  $t0, $zero, streq0 # terminou (iguais até aqui)
+    beq  $t0, $zero, streq0 # terminou (iguais atÃ© aqui)
     addi $a0, $a0, 1
     addi $a1, $a1, 1
     addi $t2, $t2, -1
@@ -70,7 +70,7 @@ cpy_loop:
 
 # ------------------------------------------------------------
 # is_all_digits_fixed(a0=addr, a1=len) -> v0
-# retorna 1 se addr[i] in ['0'..'9'] para i=0..len-1; senão 0
+# retorna 1 se addr[i] in ['0'..'9'] para i=0..len-1; senÃ£o 0
 # ------------------------------------------------------------
 is_all_digits_fixed:
     move $t0, $a0           # ptr

@@ -121,5 +121,3 @@ java -jar Mars4_5.jar exercicios/ex2.asm
   * O código usa `'\b'`, `' '` e `'\b'` para “apagar”; confira se você está digitando no **campo Keyboard** do simulador.
 
 ---
-
-Qualquer ajuste fino pra banca (ex.: trocar exemplos, simplificar a Q2 para o eco puro) é só falar.
