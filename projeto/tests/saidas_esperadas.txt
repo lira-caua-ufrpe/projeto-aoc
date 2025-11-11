@@ -1,6 +1,12 @@
+Comandos:
 Cliente cadastrado com sucesso. Numero da conta 765432-7
-Numero da conta ja em uso
+Limite de credito insuficiente
+Cliente inexistente
+Limite nao pode ser menor que a divida atual
+Limite alterado com sucesso
+Pagamento no credito registrado
+Saldo insuficiente
+Cliente cadastrado com sucesso. Numero da conta 999999-1
 Ja existe conta neste CPF
-Cliente cadastrado com sucesso. Numero da conta 222222-X
-Cliente cadastrado com sucesso. Numero da conta 123456-0
-Comando invalido
+Numero da conta ja em uso
+Encerrando...
