@@ -1,5 +1,5 @@
 # main.asm — laço do shell (banner, help, exit, conta_cadastrar + R2)
-# --- includes para montar tudo junto (arquivos na mesma pasta) ---
+# Monte só este arquivo. Os demais são incluídos aqui:
 .include "data.asm"
 .include "io.asm"
 .include "strings.asm"
@@ -7,7 +7,7 @@
 .include "ops_fin.asm"
 
 .text
-.globl main   # este arquivo define apenas 'main'
+.globl main
 
 main:
 main_loop:
@@ -15,17 +15,22 @@ main_loop:
     la   $a0, banner
     jal  print_str
 
-    # 2) lê linha em inp_buf (até 255 chars)
+    # 2) PREVINE reprocessamento: zera o 1º byte do buffer
+    la   $a0, inp_buf
+    sb   $zero, 0($a0)
+
+    # 3) lê linha em inp_buf (até 255 chars)
+    #    (se nada for digitado, o buffer continua vazio por causa do sb acima)
     la   $a0, inp_buf
     li   $a1, 255
     jal  read_line
 
-    # 3) strip final (\n, \r, espaços/tabs à direita)
+    # 4) strip final (\n, \r, espaços/tabs à direita)
     la   $a0, inp_buf
-    jal  strip_line_end
-    # len retornou em v0 (se precisar)
+    jal  strip_line_end        # v0 = len
+    beq  $v0, $zero, main_loop # linha vazia -> volta pro prompt
 
-    # 4) comandos R1/R2
+    # 5) comandos R1/R2
     # conta_cadastrar-CPF-CONTA6-NOME
     la   $a0, inp_buf
     jal  handle_conta_cadastrar
@@ -46,20 +51,18 @@ main_loop:
     jal  handle_alterar_limite
     bne  $v0, $zero, main_loop
 
-    # 5) comandos fixos (help/exit)
-    # help
+    # 6) comandos fixos (help/exit)
     la   $a0, inp_buf
     la   $a1, str_help
     jal  strcmp
     beq  $v0, $zero, do_help
 
-    # exit
     la   $a0, inp_buf
     la   $a1, str_exit
     jal  strcmp
     beq  $v0, $zero, do_exit
 
-    # 6) default -> inválido
+    # 7) default -> inválido
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop

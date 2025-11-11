@@ -1,6 +1,13 @@
-conta_cadastrar-16512329031-765432-Jose Silva
-conta_cadastrar-22233344455-765432-Maria Souza
-conta_cadastrar-16512329031-123456-Jose Duplicado
-conta_cadastrar-11122233344-222222-Ana Lima
-conta_cadastrar-55566677788-123456-Pedro Pires
-ola
+help
+conta_cadastrar-13153400466-765432-caua
+pagar_credito-765432-7-12000
+pagar_credito-765432-7-200000
+pagar_credito-765432-9-500
+alterar_limite-765432-7-10000
+alterar_limite-765432-7-200000
+pagar_credito-765432-7-1000
+pagar_debito-765432-7-5000
+conta_cadastrar-22222222222-999999-fulano
+conta_cadastrar-13153400466-123456-beltrano
+conta_cadastrar-11111111111-765432-sicrano
+exit
