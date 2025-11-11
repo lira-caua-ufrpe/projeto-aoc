@@ -1,74 +1,78 @@
-# ============================================================
-# main.asm ‚Äì Shell do banco + parser de comandos
-# ============================================================
-.data
-cmd_cadastrar: .asciiz "conta_cadastrar"
-# buffers de tokens: tok_ptrs[0] = comando; [1..3] = op√ß√µes
+# main.asm ó laÁo do shell (banner, help, exit, R1/R2/R3)
+# --- includes (arquivos na mesma pasta) ---
+.include "data.asm"
+.include "io.asm"
+.include "strings.asm"
+.include "ops_conta.asm"
+.include "ops_fin.asm"
+
 .text
 .globl main
 
 main:
-    # la√ßo principal
-shell_loop:
-    # banner
-    la  $a0, banner
-    jal print_str
+main_loop:
+    # 1) imprime prompt
+    la   $a0, banner
+    jal  print_str
 
-    # l√™ linha
-    la  $a0, linha_in
-    li  $a1, 128
-    jal read_line
+    # 2) lÍ linha em inp_buf (atÈ 255 chars)
+    la   $a0, inp_buf
+    li   $a1, 255
+    jal  read_line
 
-    # atualiza ‚Äúrel√≥gio‚Äù (acumula ms; futuramente atualiza string e juros)
-    jal tick_relogio
+    # 3) strip final (\n, \r, espaÁos/tabs ‡ direita)
+    la   $a0, inp_buf
+    jal  strip_line_end
 
-    # tokenizar por '-' e '\n'
-    la  $t0, linha_in
-    la  $t1, tok_ptrs
-    sw  $t0, 0($t1)          # primeiro token come√ßa no in√≠cio
-    li  $t2, 1               # idx pr√≥ximo token (1..3)
-tok_loop:
-    lb  $t3, 0($t0)
-    beq $t3, $zero, tok_end
-    beq $t3, 10, tok_finish  # '\n'
-    beq $t3, '-', is_delim
-    addi $t0,$t0,1
-    j tok_loop
-is_delim:
-    sb  $zero, 0($t0)        # termina token com '\0'
-    addi $t0,$t0,1
-    blt  $t2,4, store_ptr
-    j tok_loop
-store_ptr:
-    sll $t4,$t2,2            # *4
-    add $t4,$t4,$t1
-    sw  $t0, 0($t4)          # salva ponteiro
-    addi $t2,$t2,1
-    j tok_loop
-tok_finish:
-    sb  $zero, 0($t0)
-tok_end:
+    # 4) comandos R1/R2
+    la   $a0, inp_buf
+    jal  handle_conta_cadastrar
+    bne  $v0, $zero, main_loop
 
-    # comparar comando
-    la  $a0, tok_ptrs
-    lw  $a0, 0($a0)          # a0 = ptr do comando
-    la  $a1, cmd_cadastrar
-    jal strcmp
-    beq $v0, $zero, do_cadastrar
+    la   $a0, inp_buf
+    jal  handle_pagar_debito
+    bne  $v0, $zero, main_loop
 
-    # (aqui depois encadeia outros comandos usando strcmp)
-    la  $a0, msg_inv_cmd
-    jal print_str
-    j shell_loop
+    la   $a0, inp_buf
+    jal  handle_pagar_credito
+    bne  $v0, $zero, main_loop
 
-# ----- executar conta_cadastrar -cpf -conta6 -nome -----
-do_cadastrar:
-    la  $t1, tok_ptrs
-    lw  $a0, 4($t1)          # option1 = cpf
-    lw  $a1, 8($t1)          # option2 = conta6 (string num√©rica, 6 d√≠gitos)
-    lw  $a2, 12($t1)         # option3 = nome (resto da linha sem '-')
-    beq  $a0,$zero, shell_loop
-    beq  $a1,$zero, shell_loop
-    beq  $a2,$zero, shell_loop
-    jal  conta_cadastrar
-    j shell_loop
+    la   $a0, inp_buf
+    jal  handle_alterar_limite
+    bne  $v0, $zero, main_loop
+
+    # 5) comandos R3 (dump das transaÁıes)
+    la   $a0, inp_buf
+    jal  handle_dump_trans_credito
+    bne  $v0, $zero, main_loop
+
+    la   $a0, inp_buf
+    jal  handle_dump_trans_debito
+    bne  $v0, $zero, main_loop
+
+    # 6) comandos fixos
+    la   $a0, inp_buf
+    la   $a1, str_help
+    jal  strcmp
+    beq  $v0, $zero, do_help
+
+    la   $a0, inp_buf
+    la   $a1, str_exit
+    jal  strcmp
+    beq  $v0, $zero, do_exit
+
+    # default
+    la   $a0, msg_invalid
+    jal  print_str
+    j    main_loop
+
+do_help:
+    la   $a0, help_txt
+    jal  print_str
+    j    main_loop
+
+do_exit:
+    la   $a0, msg_bye
+    jal  print_str
+    li   $v0, 10
+    syscall
