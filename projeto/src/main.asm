@@ -1,96 +1,79 @@
 # main.asm — laço do shell (banner, help, exit, conta_cadastrar + R2)
+# --- includes para montar tudo junto (arquivos na mesma pasta) ---
+.include "data.asm"
+.include "io.asm"
+.include "strings.asm"
+.include "ops_conta.asm"
+.include "ops_fin.asm"
 
 .text
-.globl main 			# Este arquivo define 'main' (ok exportar)
-
-# (não declare .globl para funções/imports vindos de outros .asm no MARS)
-
-# Rótulos de dados e funções importados de outros arquivos:
-#
-# IO.ASM: print_str, read_line, strip_line_end
-# STRINGS.ASM: strcmp
-# OPS_CONTA.ASM: handle_conta_cadastrar
-# OPS_FINANCEIRO.ASM (ASSUMIDOS): handle_pagar_debito, handle_pagar_credito, handle_alterar_limite
-# DATA.ASM: banner, inp_buf, help_txt, msg_invalid, msg_bye, str_help, str_exit
+.globl main   # este arquivo define apenas 'main'
 
 main:
 main_loop:
-	# 1. IMPRIME PROMPT E LÊ COMANDO
-	
-	# imprime banner
-	la	$a0, banner
-	jal	print_str
+    # 1) imprime prompt
+    la   $a0, banner
+    jal  print_str
 
-	# lê linha para inp_buf (até 255)
-	la	$a0, inp_buf
-	li	$a1, 255
-	jal	read_line
+    # 2) lê linha em inp_buf (até 255 chars)
+    la   $a0, inp_buf
+    li   $a1, 255
+    jal  read_line
 
-	# strip final (remove \n, \r, espaços/tabs à direita)
-	la	$a0, inp_buf
-	jal	strip_line_end
-	# len retornou em v0 (se precisar)
+    # 3) strip final (\n, \r, espaços/tabs à direita)
+    la   $a0, inp_buf
+    jal  strip_line_end
+    # len retornou em v0 (se precisar)
 
-	# ----------------------------------------------------
-	# 2. VERIFICAÇÃO DE COMANDOS DE CRIAÇÃO/OPERAÇÃO (R1/R2)
-	# ----------------------------------------------------
+    # 4) comandos R1/R2
+    # conta_cadastrar-CPF-CONTA6-NOME
+    la   $a0, inp_buf
+    jal  handle_conta_cadastrar
+    bne  $v0, $zero, main_loop
 
-	# Tenta tratar conta_cadastrar-... (R1)
-	la	$a0, inp_buf
-	jal	handle_conta_cadastrar
-	bne	$v0, $zero, main_loop	# Se tratou (retorno != 0), volta pro banner
+    # pagar_debito-CONTA6-DV-VALORcentavos
+    la   $a0, inp_buf
+    jal  handle_pagar_debito
+    bne  $v0, $zero, main_loop
 
-	# Tenta tratar pagar_debito-... (R2)
-	la	$a0, inp_buf
-	jal	handle_pagar_debito
-	bne	$v0, $zero, main_loop
+    # pagar_credito-CONTA6-DV-VALORcentavos
+    la   $a0, inp_buf
+    jal  handle_pagar_credito
+    bne  $v0, $zero, main_loop
 
-	# Tenta tratar pagar_credito-... (R2)
-	la	$a0, inp_buf
-	jal	handle_pagar_credito
-	bne	$v0, $zero, main_loop
+    # alterar_limite-CONTA6-DV-NOVOLIMcentavos
+    la   $a0, inp_buf
+    jal  handle_alterar_limite
+    bne  $v0, $zero, main_loop
 
-	# Tenta tratar alterar_limite-... (R2)
-	la	$a0, inp_buf
-	jal	handle_alterar_limite
-	bne	$v0, $zero, main_loop
+    # 5) comandos fixos (help/exit)
+    # help
+    la   $a0, inp_buf
+    la   $a1, str_help
+    jal  strcmp
+    beq  $v0, $zero, do_help
 
-	# ----------------------------------------------------
-	# 3. VERIFICAÇÃO DE COMANDOS FIXOS (HELP/EXIT)
-	# ----------------------------------------------------
+    # exit
+    la   $a0, inp_buf
+    la   $a1, str_exit
+    jal  strcmp
+    beq  $v0, $zero, do_exit
 
-	# if (strcmp(inp_buf, "help")==0)
-	la	$a0, inp_buf
-	la	$a1, str_help
-	jal	strcmp
-	beq	$v0, $zero, do_help
-
-	# if (strcmp(inp_buf, "exit")==0)
-	la	$a0, inp_buf
-	la	$a1, str_exit
-	jal	strcmp
-	beq	$v0, $zero, do_exit
-
-	# ----------------------------------------------------
-	# 4. DEFAULT (COMANDO INVÁLIDO)
-	# ----------------------------------------------------
-
-	# default: comando inválido
-	la	$a0, msg_invalid
-	jal	print_str
-	j	main_loop
+    # 6) default -> inválido
+    la   $a0, msg_invalid
+    jal  print_str
+    j    main_loop
 
 # ----------------------------------------------------
-# 5. ROTINAS AUXILIARES
+# handlers auxiliares
 # ----------------------------------------------------
-
 do_help:
-	la	$a0, help_txt
-	jal	print_str
-	j	main_loop
+    la   $a0, help_txt
+    jal  print_str
+    j    main_loop
 
 do_exit:
-	la	$a0, msg_bye
-	jal	print_str
-	li	$v0, 10 			# exit
-	syscall
+    la   $a0, msg_bye
+    jal  print_str
+    li   $v0, 10     # syscall exit
+    syscall
