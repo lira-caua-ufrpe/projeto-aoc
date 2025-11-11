@@ -1,4 +1,3 @@
-```markdown
 # opcode-shell (MIPS) — banco em terminal
 
 Sistema bancário em MIPS/MARS com interpretador de comandos (shell).  
@@ -113,5 +112,4 @@ alterar_limite-123456-X-500000
 - **R2**: débito, crédito, alterar limite.
 - **R1**: cadastro de clientes.
 
-```
-Se topar, eu já preparo também um **R5** opcional: “`extrato` por cliente”, imprimindo os últimos N lançamentos com **timestamp** (aproveitando o relógio da R4). Quer que eu gere o arquivo `ops_extrato.asm` e integre no `main`?
+
