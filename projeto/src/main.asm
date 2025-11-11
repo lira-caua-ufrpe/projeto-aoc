@@ -1,4 +1,4 @@
-# main.asm — laço do shell (banner, help, exit, R1/R2/R3)
+# main.asm â€” laÃ§o do shell (banner, help, exit, R1/R2/R3)
 # --- includes (arquivos na mesma pasta) ---
 .include "data.asm"
 .include "io.asm"
@@ -15,12 +15,12 @@ main_loop:
     la   $a0, banner
     jal  print_str
 
-    # 2) lê linha em inp_buf (até 255 chars)
+    # 2) lÃª linha em inp_buf (atÃ© 255 chars)
     la   $a0, inp_buf
     li   $a1, 255
     jal  read_line
 
-    # 3) strip final (\n, \r, espaços/tabs à direita)
+    # 3) strip final (\n, \r, espaÃ§os/tabs Ã  direita)
     la   $a0, inp_buf
     jal  strip_line_end
 
@@ -41,7 +41,7 @@ main_loop:
     jal  handle_alterar_limite
     bne  $v0, $zero, main_loop
 
-    # 5) comandos R3 (dump das transações)
+    # 5) comandos R3 (dump das transaÃ§Ãµes)
     la   $a0, inp_buf
     jal  handle_dump_trans_credito
     bne  $v0, $zero, main_loop

@@ -1,7 +1,7 @@
-# data.asm ó dados globais e constantes do projeto
+# data.asm ‚Äî dados globais e constantes do projeto
 
 .data
-# ---- ExportaÁıes (usadas em outros arquivos) ----
+# ---- Exporta√ß√µes (usadas em outros arquivos) ----
 .globl MAX_CLIENTS, NAME_MAX, CPF_STR_LEN, ACC_NUM_LEN, ACC_DV_LEN, LIMITE_PADRAO_CENT, TRANS_MAX
 .globl inp_buf, bank_name, banner, help_txt, msg_invalid, msg_bye
 .globl str_help, str_exit
@@ -12,7 +12,7 @@
 .globl msg_cc_badfmt, msg_cc_badcpf, msg_cc_badacc, msg_cc_badname
 .globl msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf, msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
 
-# --- R3: transaÁıes (exports) ---
+# --- R3: transa√ß√µes (exports) ---
 .globl trans_deb_vals, trans_cred_vals
 .globl trans_deb_wptr, trans_cred_wptr
 .globl trans_deb_head, trans_deb_count
@@ -22,11 +22,11 @@
 # ---- Constantes do sistema ----
 MAX_CLIENTS:        .word 50
 NAME_MAX:           .word 32           # +1 p/ '\0' no armazenamento
-CPF_STR_LEN:        .word 11           # "XXXXXXXXXXX" (11 dÌgitos)
+CPF_STR_LEN:        .word 11           # "XXXXXXXXXXX" (11 d√≠gitos)
 ACC_NUM_LEN:        .word 6            # "XXXXXX"
 ACC_DV_LEN:         .word 1            # 1 caractere
 LIMITE_PADRAO_CENT: .word 150000       # R$1500,00 em centavos
-TRANS_MAX:          .word 50           # m·x transaÁıes por cliente (dÈbito e crÈdito)
+TRANS_MAX:          .word 50           # m√°x transa√ß√µes por cliente (d√©bito e cr√©dito)
 
 # ---- Buffers gerais (terminal) ----
 inp_buf:    .space 256
@@ -38,7 +38,7 @@ help_txt:   .asciiz "Comandos:\n- help                : mostra esta ajuda\n- exi
 msg_invalid:.asciiz "Comando invalido\n"
 msg_bye:    .asciiz "Encerrando...\n"
 
-# literais para comparaÁ„o direta no main
+# literais para compara√ß√£o direta no main
 str_help:   .asciiz "help"
 str_exit:   .asciiz "exit"
 
@@ -48,7 +48,7 @@ str_cmd_pay_debito:    .asciiz "pagar_debito-"
 str_cmd_pay_credito:   .asciiz "pagar_credito-"
 str_cmd_alt_limite:    .asciiz "alterar_limite-"
 
-# ---- Mensagens especÌficas ----
+# ---- Mensagens espec√≠ficas ----
 msg_cc_ok:          .asciiz "Cliente cadastrado com sucesso. Numero da conta "
 msg_cc_cpf_exists:  .asciiz "Ja existe conta neste CPF\n"
 msg_cc_acc_exists:  .asciiz "Numero da conta ja em uso\n"
@@ -70,8 +70,8 @@ msg_limite_baixo_divida:.asciiz "Novo limite menor que a divida atual\n"
 #   Estruturas dos clientes
 # ==========================
 # - clientes_usado[i]        : 0 livre / 1 ocupado
-# - clientes_cpf[i]          : 12 bytes (11 dÌgitos + '\0')
-# - clientes_conta[i]        : 7 bytes  (6 dÌgitos + '\0')
+# - clientes_cpf[i]          : 12 bytes (11 d√≠gitos + '\0')
+# - clientes_conta[i]        : 7 bytes  (6 d√≠gitos + '\0')
 # - clientes_dv[i]           : 1 byte   (ASCII do DV: '0'..'9' ou 'X')
 # - clientes_nome[i]         : 33 bytes (ate 32 + '\0')
 # - clientes_saldo_cent[i]   : .word
@@ -93,20 +93,20 @@ clientes_limite_cent:  .space 200       # 50 * 4
 .align 2
 clientes_devido_cent:  .space 200       # 50 * 4
 
-# ---- buffers tempor·rios do handler conta_cadastrar ----
-cc_buf_cpf:   .space 12   # 11 dÌgitos + '\0'
-cc_buf_acc:   .space 7    # 6 dÌgitos + '\0'
-cc_buf_nome:  .space 33   # atÈ 32 + '\0'
+# ---- buffers tempor√°rios do handler conta_cadastrar ----
+cc_buf_cpf:   .space 12   # 11 d√≠gitos + '\0'
+cc_buf_acc:   .space 7    # 6 d√≠gitos + '\0'
+cc_buf_nome:  .space 33   # at√© 32 + '\0'
 
 # ==========================
-#   R3 ñ buffers de transaÁıes (por cliente)
-#   - Cada cliente tem 50 slots por tipo (dÈbito e crÈdito)
+#   R3 ‚Äì buffers de transa√ß√µes (por cliente)
+#   - Cada cliente tem 50 slots por tipo (d√©bito e cr√©dito)
 #   - Cada entrada guarda o valor em centavos (word)
-#   - Õndice de escrita (wptr/head) È circular [0..49]
+#   - √çndice de escrita (wptr/head) √© circular [0..49]
 #   - Layout linear de vals: base + (i*50 + k)*4
 # ==========================
 
-# ponteiros de escrita (wptr) ñ se seu handler usa esses nomes
+# ponteiros de escrita (wptr) ‚Äì se seu handler usa esses nomes
 .align 2
 trans_deb_wptr:   .space 200      # 50 * 4 bytes
 .align 2
@@ -122,7 +122,7 @@ trans_cred_head:  .space 200
 .align 2
 trans_cred_count: .space 200
 
-# valores das transaÁıes (centavos) ñ 50 clientes * 50 slots * 4 bytes
+# valores das transa√ß√µes (centavos) ‚Äì 50 clientes * 50 slots * 4 bytes
 .align 2
 trans_deb_vals:   .space 10000    # 50*50*4
 .align 2

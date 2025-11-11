@@ -1,172 +1,309 @@
-# ============================================================
-# ops_conta.asm ‚Äì cadastro/consulta/altera√ß√µes de conta
-# ============================================================
-.data
-tmp_conta_num: .space 8      # 6 digitos + '\0'
-tmp_conta_fmt: .space 10     # "XXXXXX-X"
+# ops_conta.asm ó handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
 
 .text
-.globl conta_cadastrar, find_by_cpf, find_by_conta, dv_calc
+.globl handle_conta_cadastrar
 
-# dv_calc(a0=addr str6) -> v0 = ASCII '0'..'9' ou 'X'
-# regra: (d0*2)+(d1*3)+...+(d5*7) mod 11 ; se 10 -> 'X'
-dv_calc:
-    # t0 = ptr, t1 = i (0..5), soma em t2
-    move $t0,$a0
-    move $t1,$zero
-    move $t2,$zero
-1:  lb  $t3,0($t0)           # char
-    addi $t3,$t3,-48         # '0'->0
-    addi $t4,$t1,2           # peso = i+2
-    mul $t5,$t3,$t4
-    add $t2,$t2,$t5
-    addi $t0,$t0,1
-    addi $t1,$t1,1
-    blt  $t1,6,1b
-    # resto mod 11
-    li  $t6,11
-    div $t2,$t6
-    mfhi $t7                  # resto
-    li  $t6,10
-    beq $t7,$t6,retX
-    addi $v0,$t7,48           # '0'+resto
-    jr  $ra
-retX:
-    li $v0,'X'
-    jr $ra
+# handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se n„o era esse comando
+handle_conta_cadastrar:
+    # --- PROLOGO: salvar RA e S-registers usados ---
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)
+    sw    $s1, 20($sp)
+    sw    $s2, 16($sp)
 
-# find_by_cpf(a0=cpf_str) -> v0 = idx (0..MAX-1) ou -1
-find_by_cpf:
-    la  $t0, clientes
-    li  $t1, 0
-1:  beq $t1, MAX_CLIENTES, notfound
-    lb  $t2, CLI_ATIVO($t0)
-    beq $t2,$zero, next
-    addiu $a1,$t0,CLI_CPF      # a1 = cpf salvo
-    move $a2,$a0               # a2 = cpf buscado
-    move $a0,$a2
-    move $a1,$a1
-    jal strcmp
-    bne $v0,$zero,next
-    move $v0,$t1
-    jr $ra
-next:
-    addiu $t0,$t0,CLI_END
-    addi  $t1,$t1,1
-    j 1b
-notfound:
-    li $v0,-1
-    jr $ra
+    # compara prefixo "conta_cadastrar-"
+    move $t0, $a0
+    la   $t1, str_cmd_cc_prefix
+cc_pref_loop:
+    lb   $t2, 0($t1)
+    beq  $t2, $zero, cc_pref_ok
+    lb   $t3, 0($t0)
+    bne  $t2, $t3, cc_not_mine
+    addi $t1, $t1, 1
+    addi $t0, $t0, 1
+    j    cc_pref_loop
 
-# find_by_conta(a0=conta "XXXXXX-X") -> v0 = idx ou -1
-find_by_conta:
-    la  $t0, clientes
-    li  $t1, 0
-1:  beq $t1, MAX_CLIENTES, nf
-    lb  $t2, CLI_ATIVO($t0)
-    beq $t2,$zero, nx
-    addiu $a1,$t0,CLI_CONTA
-    move $a2,$a0
-    move $a0,$a2
-    move $a1,$a1
-    jal strcmp
-    bne $v0,$zero, nx
-    move $v0,$t1
-    jr $ra
-nx:
-    addiu $t0,$t0,CLI_END
-    addi  $t1,$t1,1
-    j 1b
-nf:
-    li $v0,-1
-    jr $ra
+cc_pref_ok:
+    # -------- CPF (11 dÌgitos) atÈ '-' --------
+    la   $t4, cc_buf_cpf
+    li   $t5, 0
+cc_cpf_loop:
+    lb   $t6, 0($t0)
+    beq  $t6, $zero, cc_badfmt
+    beq  $t6, 45,   cc_cpf_end          # '-'
+    blt  $t6, 48,   cc_badcpf           # < '0'
+    bgt  $t6, 57,   cc_badcpf           # > '9'
+    sb   $t6, 0($t4)
+    addi $t4, $t4, 1
+    addi $t0, $t0, 1
+    addi $t5, $t5, 1
+    blt  $t5, 11,   cc_cpf_loop
+    lb   $t6, 0($t0)                     # se tem mais que 11 antes de '-'
+    bne  $t6, 45,   cc_badcpf
+cc_cpf_end:
+    sb   $zero, 0($t4)
+    li   $t7, 11
+    bne  $t5, $t7,  cc_badcpf
+    addi $t0, $t0, 1                # pula '-'
 
-# conta_cadastrar(a0=cpf, a1=conta6, a2=nome) -> imprime msg
-# Regras: checa cpf √∫nico e conta6 √∫nica; gera DV e formata "XXXXXX-X";
-# cria cliente com saldo 0, limite 150000 (R$ 1500,00), d√≠vida 0.
-.globl conta_cadastrar
-conta_cadastrar:
-    # checar CPF existente
-    move $t8,$a0
-    jal  find_by_cpf
-    bne  $v0,-1, err_cpf
+    # -------- CONTA (6 dÌgitos) atÈ '-' --------
+    la   $t4, cc_buf_acc
+    li   $t5, 0
+cc_acc_loop:
+    lb   $t6, 0($t0)
+    beq  $t6, $zero, cc_badfmt
+    beq  $t6, 45,   cc_acc_end
+    blt  $t6, 48,   cc_badacc
+    bgt  $t6, 57,   cc_badacc
+    sb   $t6, 0($t4)
+    addi $t4, $t4, 1
+    addi $t0, $t0, 1
+    addi $t5, $t5, 1
+    blt  $t5, 6,    cc_acc_loop
+    lb   $t6, 0($t0)
+    bne  $t6, 45,   cc_badacc
+cc_acc_end:
+    sb   $zero, 0($t4)
+    li   $t7, 6
+    bne  $t5, $t7,  cc_badacc
+    addi $t0, $t0, 1                # pula '-'
 
-    # checar n√∫mero de conta (6 d√≠gitos) n√£o usado
-    # formata conta "XXXXXX-X" em tmp_conta_fmt
-    move $a0, $a1
-    jal  dv_calc               # v0 = ASCII do DV
-    move $t7,$v0               # guarda DV
-    la   $t0,tmp_conta_fmt
-    la   $t1,tmp_conta_num
-    # copia a conta6 para tmp_conta_num e para tmp_conta_fmt
-    la   $a0,tmp_conta_num
-    move $a1,$a1
+    # -------- NOME (trim left; m·x 32) --------
+cc_name_trim:
+    lb   $t6, 0($t0)
+    beq  $t6, $zero, cc_badname
+    li   $t7, 32
+    bne  $t6, $t7, cc_name_copy
+    addi $t0, $t0, 1
+    j    cc_name_trim
+
+cc_name_copy:
+    la   $t4, cc_buf_nome
+    li   $t5, 0
+cc_name_loop:
+    lb   $t6, 0($t0)
+    beq  $t6, $zero, cc_name_end
+    sb   $t6, 0($t4)
+    addi $t4, $t4, 1
+    addi $t0, $t0, 1
+    addi $t5, $t5, 1
+    blt  $t5, 32, cc_name_loop
+    j    cc_badname                 # estourou 32
+cc_name_end:
+    sb   $zero, 0($t4)
+    beq  $t5, $zero, cc_badname
+
+    # -------- Calcula DV (mod11 pesos 2..7, d0 = menos significativo) --------
+    la   $t0, cc_buf_acc
+    addi $t0, $t0, 5        # aponta pro ˙ltimo dÌgito
+    li   $t1, 2             # peso
+    move $t2, $zero         # soma
+    li   $t3, 6             # contador
+cc_dv_loop:
+    lb   $t4, 0($t0)
+    addi $t4, $t4, -48      # ascii -> int
+    mul  $t4, $t4, $t1
+    addu $t2, $t2, $t4
+    addi $t1, $t1, 1
+    addi $t0, $t0, -1
+    addi $t3, $t3, -1
+    bgtz $t3, cc_dv_loop
+    li   $t5, 11
+    divu $t2, $t5
+    mfhi $t6                 # resto
+    li   $t7, 10
+    beq  $t6, $t7, cc_dv_x
+    addi $t6, $t6, 48        # '0'..'9'
+    j    cc_dv_done
+cc_dv_x:
+    li   $t6, 'X'
+cc_dv_done:
+    move $s1, $t6            # DV ascii
+
+    # -------- Checa duplicidades e encontra vaga --------
+    lw   $t8, MAX_CLIENTS    # N
+    li   $s2, -1             # idx livre = -1
+    li   $t9, 0              # i = 0
+
+cc_scan_loop:
+    beq  $t9, $t8, cc_scan_end
+
+    # usado?
+    la   $a0, clientes_usado
+    addu $a0, $a0, $t9
+    lb   $a1, 0($a0)
+    beq  $a1, $zero, cc_maybe_free
+
+    # compara CPF
+    li   $a2, 12
+    la   $a0, clientes_cpf
+    mul  $a3, $t9, $a2
+    addu $a0, $a0, $a3
+    la   $a1, cc_buf_cpf
+    jal  strcmp
+    beq  $v0, $zero, cc_dup_cpf
+
+    # compara CONTA (6 chars)
+    li   $a2, 7
+    la   $t0, clientes_conta
+    mul  $a3, $t9, $a2
+    addu $t0, $t0, $a3
+    la   $t1, cc_buf_acc
+    li   $t2, 0
+cc_cmp6:
+    lb   $t3, 0($t0)
+    lb   $t4, 0($t1)
+    bne  $t3, $t4, cc_next_slot
+    addi $t0, $t0, 1
+    addi $t1, $t1, 1
+    addi $t2, $t2, 1
+    blt  $t2, 6, cc_cmp6
+    j    cc_dup_acc
+
+cc_maybe_free:
+    bltz $s2, cc_save_free
+    j    cc_next_slot
+cc_save_free:
+    move $s2, $t9
+
+cc_next_slot:
+    addi $t9, $t9, 1
+    j    cc_scan_loop
+
+cc_scan_end:
+    bltz $s2, cc_full
+
+    # -------- Escreve no Ìndice s2 --------
+    # ponteiros base
+    la   $t0, clientes_usado
+    la   $t1, clientes_cpf
+    la   $t2, clientes_conta
+    la   $t3, clientes_dv
+    la   $t4, clientes_nome
+    la   $t5, clientes_saldo_cent
+    la   $t6, clientes_limite_cent
+    la   $t7, clientes_devido_cent
+
+    # offsets
+    addu $t0, $t0, $s2              # usado +s2
+    li   $a0, 12
+    mul  $a1, $s2, $a0
+    addu $t1, $t1, $a1              # cpf + s2*12
+    li   $a0, 7
+    mul  $a1, $s2, $a0
+    addu $t2, $t2, $a1              # conta + s2*7
+    addu $t3, $t3, $s2              # dv + s2
+    li   $a0, 33
+    mul  $a1, $s2, $a0
+    addu $t4, $t4, $a1              # nome + s2*33
+    sll  $a1, $s2, 2                 # *4
+    addu $t5, $t5, $a1              # saldo + s2*4
+    addu $t6, $t6, $a1              # limite + s2*4
+    addu $t7, $t7, $a1              # devido + s2*4
+
+    # grava
+    li   $a0, 1
+    sb   $a0, 0($t0)                # usado=1
+
+    la   $a0, cc_buf_cpf
+    move $a1, $t1
     jal  strcpy
-    # tmp_conta_fmt = conta6 + '-' + DV + '\0'
-    la   $a0,tmp_conta_fmt
-    la   $a1,tmp_conta_num
-    jal  strcpy
-    la   $a0,tmp_conta_fmt
-    la   $a1,str_hifen
-    jal  strcat
-    la   $a0,tmp_conta_fmt
-    la   $a1,tmp_str
-    sb   $t7,0($a1)           # tmp_str[0]=DV
-    sb   $zero,1($a1)
-    jal  strcat
 
-    # validar unicidade da conta formatada
-    la   $a0,tmp_conta_fmt
-    jal  find_by_conta
-    bne  $v0,-1, err_conta
-
-    # alocar slot de cliente
-    la  $t0, clientes
-    li  $t1, 0
-aloca_loop:
-    beq $t1, MAX_CLIENTES, err_conta   # cheio (reaproveitei msg)
-    lb  $t2, CLI_ATIVO($t0)
-    beq $t2,$zero, achou
-    addiu $t0,$t0,CLI_END
-    addi  $t1,$t1,1
-    j aloca_loop
-achou:
-    li   $t2,1
-    sb   $t2, CLI_ATIVO($t0)
-    # cpf
-    addiu $a0,$t0,CLI_CPF
-    move $a1,$t8
+    la   $a0, cc_buf_acc
+    move $a1, $t2
     jal  strcpy
-    # conta formatada
-    addiu $a0,$t0,CLI_CONTA
-    la   $a1,tmp_conta_fmt
-    jal  strcpy
-    # nome
-    addiu $a0,$t0,CLI_NOME
-    move $a1,$a2
-    jal  strcpy
-    # saldos
-    sw  $zero, CLI_SALDO($t0)         # saldo = 0
-    li  $t3, 150000
-    sw  $t3,   CLI_LIMITE($t0)        # limite = 1500,00
-    sw  $zero, CLI_DIVCRED($t0)       # d√≠vida cr√©dito = 0
-    sw  $zero, CLI_IDX_DEB($t0)
-    sw  $zero, CLI_IDX_CRE($t0)
 
-    # Mensagem de sucesso + n√∫mero da conta
-    la  $a0, msg_ok_cad
-    jal print_str
-    addiu $a0,$t0,CLI_CONTA
-    jal print_str
-    la  $a0, msg_nl
-    jal print_str
-    jr  $ra
+    sb   $s1, 0($t3)                # DV
 
-err_cpf:
-    la $a0, msg_err_cpf
-    jal print_str
-    jr $ra
-err_conta:
-    la $a0, msg_err_conta
-    jal print_str
-    jr $ra
+    la   $a0, cc_buf_nome
+    move $a1, $t4
+    jal  strcpy
+
+    sw   $zero, 0($t5)              # saldo = 0
+    lw   $a0, LIMITE_PADRAO_CENT
+    sw   $a0, 0($t6)                # limite = padr„o
+    sw   $zero, 0($t7)              # devido = 0
+
+    # sucesso
+    li   $v0, 4
+    la   $a0, msg_cc_ok
+    syscall
+    li   $v0, 4
+    move $a0, $t2                   # conta
+    syscall
+    li   $v0, 11
+    li   $a0, '-'
+    syscall
+    li   $v0, 11
+    move $a0, $s1                   # DV
+    syscall
+    li   $v0, 11
+    li   $a0, 10                    # '\n'
+    syscall
+
+    li   $v0, 1
+    j    cc_epilogue
+
+# ---- erros/duplicidades ----
+cc_dup_cpf:
+    li   $v0, 4
+    la   $a0, msg_cc_cpf_exists
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_dup_acc:
+    li   $v0, 4
+    la   $a0, msg_cc_acc_exists
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_full:
+    li   $v0, 4
+    la   $a0, msg_cc_full
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_badfmt:
+    li   $v0, 4
+    la   $a0, msg_cc_badfmt
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_badcpf:
+    li   $v0, 4
+    la   $a0, msg_cc_badcpf
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_badacc:
+    li   $v0, 4
+    la   $a0, msg_cc_badacc
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_badname:
+    li   $v0, 4
+    la   $a0, msg_cc_badname
+    syscall
+    li   $v0, 1
+    j    cc_epilogue
+
+cc_not_mine:
+    move $v0, $zero
+    j    cc_epilogue
+
+# --- EPILOGO COMUM ---
+cc_epilogue:
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra

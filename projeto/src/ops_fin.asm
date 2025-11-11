@@ -1,10 +1,10 @@
-# ops_fin.asm — R2 (pagamentos) + R3 (registro de transações)
+# ops_fin.asm â€” R2 (pagamentos) + R3 (registro de transaÃ§Ãµes)
 # Handlers:
 #  - pagar_debito-<CONTA6>-<DV>-<VALORcentavos>
 #  - pagar_credito-<CONTA6>-<DV>-<VALORcentavos>
 #  - alterar_limite-<CONTA6>-<DV>-<NOVO_LIMcentavos>
 #
-# Regras R3: registrar até 50 trans/debito e 50 trans/credito por cliente,
+# Regras R3: registrar atÃ© 50 trans/debito e 50 trans/credito por cliente,
 # sobrescrevendo a mais antiga (buffer circular).
 
 .text
@@ -17,7 +17,7 @@
 #   a0 = i (cliente)
 #   a1 = k (head/pos)
 #   v0 = deslocamento em bytes (multiplo de 4)
-# (sem usar rótulos numéricos)
+# (sem usar rÃ³tulos numÃ©ricos)
 # ------------------------------------------------------------
 calc_off_i50k:
     # t0 = i*50 = i*32 + i*16 + i*2
@@ -149,7 +149,7 @@ pd_cmp6:
     subu  $t3, $t3, $t8
     sw    $t3, 0($t2)
 
-    # ---- R3: registra débito ----
+    # ---- R3: registra dÃ©bito ----
     # headAddr = trans_deb_head + 4*i
     la    $t4, trans_deb_head
     addu  $t4, $t4, $t0       # t0 = i*4
@@ -321,7 +321,7 @@ pc_cmp6:
     bne   $t2, $s1, pc_next_i
 
     # --- ENCONTROU i ---
-    # verifica limite disponível: (limite - devido) >= valor ?
+    # verifica limite disponÃ­vel: (limite - devido) >= valor ?
     sll   $t0, $t1, 2
     la    $t2, clientes_limite_cent
     la    $t3, clientes_devido_cent
@@ -337,7 +337,7 @@ pc_cmp6:
     addu  $t5, $t5, $t8
     sw    $t5, 0($t3)
 
-    # ---- R3: registra crédito ----
+    # ---- R3: registra crÃ©dito ----
     la    $t4, trans_cred_head
     addu  $t4, $t4, $t0        # t0 = i*4
     lw    $t5, 0($t4)          # head (0..49)
@@ -555,7 +555,7 @@ al_done:
     jr    $ra
 
 ################################################################
-# DEBUG R3: Dump de transações (CRÉDITO / DÉBITO)
+# DEBUG R3: Dump de transaÃ§Ãµes (CRÃ‰DITO / DÃ‰BITO)
 # Comandos:
 #   dump_trans-cred-XXXXXX-DV
 #   dump_trans-deb- XXXXXX-DV
@@ -574,7 +574,7 @@ dump_newline:  .asciiz "\n"
 # handle_dump_trans_credito(a0=inp_buf) -> v0=1 tratou, 0 nao
 # --------------------------------------------------------------
 handle_dump_trans_credito:
-    # prólogo
+    # prÃ³logo
     addiu $sp, $sp, -40
     sw    $ra, 36($sp)
     sw    $s0, 32($sp)
@@ -703,7 +703,7 @@ dtc_next:
 
 dtc_not_found:
     li    $v0, 4
-    la    $a0, msg_err_cli_inexist   # já existe no seu data.asm
+    la    $a0, msg_err_cli_inexist   # jÃ¡ existe no seu data.asm
     syscall
     li    $v0, 1
     j     dtc_epilogue
@@ -732,7 +732,7 @@ dtc_epilogue:
 # handle_dump_trans_debito(a0=inp_buf) -> v0=1 tratou, 0 nao
 # --------------------------------------------------------------
 handle_dump_trans_debito:
-    # prólogo
+    # prÃ³logo
     addiu $sp, $sp, -40
     sw    $ra, 36($sp)
     sw    $s0, 32($sp)
@@ -884,8 +884,8 @@ dtd_epilogue:
 
 
 ###############################################################
-# Se ainda não tiver os literais de prefixo no data.asm, cole:
-# (se já tiver, NÃO duplique!)
+# Se ainda nÃ£o tiver os literais de prefixo no data.asm, cole:
+# (se jÃ¡ tiver, NÃƒO duplique!)
 #   str_cmd_dumpcred: .asciiz "dump_trans-cred-"
 #   str_cmd_dumpdeb:  .asciiz "dump_trans-deb-"
 ###############################################################
