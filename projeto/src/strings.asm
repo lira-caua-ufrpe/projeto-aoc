@@ -1,103 +1,91 @@
-# strings.asm — rotinas de string: strcmp, strncmp, is_all_digits_fixed
+# strings.asm — utilitários básicos de strings para o projeto
+# Convenções usadas no projeto:
+#   strcmp(a0=s1, a1=s2) -> v0: 0 se iguais; <0 se s1<s2; >0 se s1>s2
+#   strncmp(a0=s1, a1=s2, a3=n) -> idem, comparando até n chars
+#   strcpy(a0=src, a1=dst) -> v0=dst (copia incluindo '\0')
+#   is_all_digits_fixed(a0=addr, a1=len) -> v0=1 se todos '0'..'9', senão 0
 
 .text
 .globl strcmp
 .globl strncmp
+.globl strcpy
 .globl is_all_digits_fixed
 
 # ------------------------------------------------------------
-# strcmp(a0=str1, a1=str2) -> v0:
-#   <0 se str1 < str2 ; 0 se iguais ; >0 se str1 > str2
-# Null-safe:
-#   a0==NULL && a1==NULL -> 0
-#   a0==NULL -> -1
-#   a1==NULL ->  1
+# strcmp(a0=s1, a1=s2) -> v0
 # ------------------------------------------------------------
 strcmp:
-    beq  $a0, $zero, strcmp_a0_null
-    beq  $a1, $zero, strcmp_a1_null
-    move $t0, $a0
-    move $t1, $a1
-strcmp_loop:
-    lb   $t2, 0($t0)
-    lb   $t3, 0($t1)
-    beq  $t2, $t3, strcmp_next
-    sub  $v0, $t2, $t3
-    jr   $ra
-strcmp_next:
-    beq  $t2, $zero, strcmp_eq
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
-    j    strcmp_loop
-strcmp_eq:
+    # loop: compara char a char
+sc_loop:
+    lb   $t0, 0($a0)        # c1
+    lb   $t1, 0($a1)        # c2
+    bne  $t0, $t1, sc_diff
+    beq  $t0, $zero, sc_eq  # se c1==c2==0 => iguais
+    addi $a0, $a0, 1
+    addi $a1, $a1, 1
+    j    sc_loop
+sc_eq:
     move $v0, $zero
     jr   $ra
-strcmp_a0_null:
-    beq  $a1, $zero, strcmp_eq
-    li   $v0, -1
-    jr   $ra
-strcmp_a1_null:
-    li   $v0, 1
+sc_diff:
+    subu $v0, $t0, $t1      # sinaliza diferença
     jr   $ra
 
 # ------------------------------------------------------------
-# strncmp(a0=str1, a1=str2, a3=num) -> v0:
-# Compara até num caracteres ou até '\0' em algum lado.
-# Null-safe; n<=0 => 0
+# strncmp(a0=s1, a1=s2, a3=n) -> v0
+# compara até n caracteres (ou até achar '\0' em algum)
 # ------------------------------------------------------------
 strncmp:
-    blez $a3, strncmp_eq
-    beq  $a0, $zero, strncmp_a0_null
-    beq  $a1, $zero, strncmp_a1_null
-    move $t0, $a0
-    move $t1, $a1
-    move $t4, $a3
-strncmp_loop:
-    lb   $t2, 0($t0)
-    lb   $t3, 0($t1)
-    bne  $t2, $t3, strncmp_diff
-    beq  $t2, $zero, strncmp_eq
-    addi $t0, $t0, 1
-    addi $t1, $t1, 1
-    addi $t4, $t4, -1
-    bgtz $t4, strncmp_loop
-strncmp_eq:
+    move $t2, $a3           # t2 = n restante
+    beq  $t2, $zero, streq0 # n == 0 => iguais
+stn_loop:
+    lb   $t0, 0($a0)        # c1
+    lb   $t1, 0($a1)        # c2
+    bne  $t0, $t1, stn_diff
+    beq  $t0, $zero, streq0 # terminou (iguais até aqui)
+    addi $a0, $a0, 1
+    addi $a1, $a1, 1
+    addi $t2, $t2, -1
+    bgtz $t2, stn_loop
+streq0:
     move $v0, $zero
     jr   $ra
-strncmp_diff:
-    sub  $v0, $t2, $t3
-    jr   $ra
-strncmp_a0_null:
-    beq  $a1, $zero, strncmp_eq
-    li   $v0, -1
-    jr   $ra
-strncmp_a1_null:
-    li   $v0, 1
+stn_diff:
+    subu $v0, $t0, $t1
     jr   $ra
 
 # ------------------------------------------------------------
-# is_all_digits_fixed(a0=buf, a1=len) -> v0:
-#   Retorna 1 se buf[0..len-1] são '0'..'9' e (buf[len]=='\0'), senão 0.
-#   Null-safe.
+# strcpy(a0=src, a1=dst) -> v0=dst
+# copia incluindo o terminador '\0'
+# ------------------------------------------------------------
+strcpy:
+    move $v0, $a1           # retorno = dst
+cpy_loop:
+    lb   $t0, 0($a0)        # ch = *src
+    sb   $t0, 0($a1)        # *dst = ch
+    addi $a0, $a0, 1
+    addi $a1, $a1, 1
+    bne  $t0, $zero, cpy_loop
+    jr   $ra
+
+# ------------------------------------------------------------
+# is_all_digits_fixed(a0=addr, a1=len) -> v0
+# retorna 1 se addr[i] in ['0'..'9'] para i=0..len-1; senão 0
 # ------------------------------------------------------------
 is_all_digits_fixed:
-    beq  $a0, $zero, iadf_no
-    blez $a1, iadf_no
-    move $t0, $a0
-    move $t1, $a1
-iadf_loop:
-    beq  $t1, $zero, iadf_check_terminator
+    move $t0, $a0           # ptr
+    move $t1, $a1           # len restante
+    blez $t1, alldig_yes    # len <= 0 -> aceita (1)
+alldig_loop:
     lb   $t2, 0($t0)
-    blt  $t2, 48, iadf_no       # < '0'
-    bgt  $t2, 57, iadf_no       # > '9'
+    blt  $t2, 48, alldig_no     # '0'
+    bgt  $t2, 57, alldig_no     # '9'
     addi $t0, $t0, 1
     addi $t1, $t1, -1
-    j    iadf_loop
-iadf_check_terminator:
-    lb   $t3, 0($t0)
-    bne  $t3, $zero, iadf_no
+    bgtz $t1, alldig_loop
+alldig_yes:
     li   $v0, 1
     jr   $ra
-iadf_no:
+alldig_no:
     move $v0, $zero
     jr   $ra
