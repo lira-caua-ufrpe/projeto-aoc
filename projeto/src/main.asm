@@ -1,5 +1,5 @@
-# main.asm — laço do shell (banner, help, exit, conta_cadastrar + R2)
-# Monte só este arquivo. Os demais são incluídos aqui:
+# main.asm â€” laÃ§o do shell (banner, help, exit, R1/R2/R3)
+# --- includes (arquivos na mesma pasta) ---
 .include "data.asm"
 .include "io.asm"
 .include "strings.asm"
@@ -15,43 +15,42 @@ main_loop:
     la   $a0, banner
     jal  print_str
 
-    # 2) PREVINE reprocessamento: zera o 1º byte do buffer
-    la   $a0, inp_buf
-    sb   $zero, 0($a0)
-
-    # 3) lê linha em inp_buf (até 255 chars)
-    #    (se nada for digitado, o buffer continua vazio por causa do sb acima)
+    # 2) lÃª linha em inp_buf (atÃ© 255 chars)
     la   $a0, inp_buf
     li   $a1, 255
     jal  read_line
 
-    # 4) strip final (\n, \r, espaços/tabs à direita)
+    # 3) strip final (\n, \r, espaÃ§os/tabs Ã  direita)
     la   $a0, inp_buf
-    jal  strip_line_end        # v0 = len
-    beq  $v0, $zero, main_loop # linha vazia -> volta pro prompt
+    jal  strip_line_end
 
-    # 5) comandos R1/R2
-    # conta_cadastrar-CPF-CONTA6-NOME
+    # 4) comandos R1/R2
     la   $a0, inp_buf
     jal  handle_conta_cadastrar
     bne  $v0, $zero, main_loop
 
-    # pagar_debito-CONTA6-DV-VALORcentavos
     la   $a0, inp_buf
     jal  handle_pagar_debito
     bne  $v0, $zero, main_loop
 
-    # pagar_credito-CONTA6-DV-VALORcentavos
     la   $a0, inp_buf
     jal  handle_pagar_credito
     bne  $v0, $zero, main_loop
 
-    # alterar_limite-CONTA6-DV-NOVOLIMcentavos
     la   $a0, inp_buf
     jal  handle_alterar_limite
     bne  $v0, $zero, main_loop
 
-    # 6) comandos fixos (help/exit)
+    # 5) comandos R3 (dump das transaÃ§Ãµes)
+    la   $a0, inp_buf
+    jal  handle_dump_trans_credito
+    bne  $v0, $zero, main_loop
+
+    la   $a0, inp_buf
+    jal  handle_dump_trans_debito
+    bne  $v0, $zero, main_loop
+
+    # 6) comandos fixos
     la   $a0, inp_buf
     la   $a1, str_help
     jal  strcmp
@@ -62,14 +61,11 @@ main_loop:
     jal  strcmp
     beq  $v0, $zero, do_exit
 
-    # 7) default -> inválido
+    # default
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop
 
-# ----------------------------------------------------
-# handlers auxiliares
-# ----------------------------------------------------
 do_help:
     la   $a0, help_txt
     jal  print_str
@@ -78,5 +74,5 @@ do_help:
 do_exit:
     la   $a0, msg_bye
     jal  print_str
-    li   $v0, 10     # syscall exit
+    li   $v0, 10
     syscall
