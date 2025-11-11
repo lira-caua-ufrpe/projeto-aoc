@@ -8,16 +8,21 @@
 # sobrescrevendo a mais antiga (buffer circular).
 
 .text
+.globl calc_off_i50k
 .globl handle_pagar_debito
 .globl handle_pagar_credito
 .globl handle_alterar_limite
+.globl handle_dump_trans_credito
+.globl handle_dump_trans_debito
+# aliases esperados pelo main.asm:
+.globl handle_dump_trans_cred
+.globl handle_dump_trans_deb
 
 # ------------------------------------------------------------
 # Util: calcula offset 4 * ( i*50 + k )
 #   a0 = i (cliente)
 #   a1 = k (head/pos)
 #   v0 = deslocamento em bytes (multiplo de 4)
-# (sem usar rótulos numéricos)
 # ------------------------------------------------------------
 calc_off_i50k:
     # t0 = i*50 = i*32 + i*16 + i*2
@@ -564,11 +569,8 @@ al_done:
 .data
 dump_hdr_cred: .asciiz "LOG credito (50 posicoes, mais antigo -> mais novo)\n"
 dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)\n"
-dump_newline:  .asciiz "\n"
 
 .text
-.globl handle_dump_trans_credito
-.globl handle_dump_trans_debito
 
 # --------------------------------------------------------------
 # handle_dump_trans_credito(a0=inp_buf) -> v0=1 tratou, 0 nao
@@ -584,7 +586,7 @@ handle_dump_trans_credito:
 
     # prefixo "dump_trans-cred-"
     move  $t0, $a0
-    la    $t1, str_cmd_dumpcred    # >>> se nao existir em data.asm, veja bloco logo abaixo <<<
+    la    $t1, str_cmd_dumpcred
 dtc_pref:
     lb    $t2, 0($t1)
     beq   $t2, $zero, dtc_pref_ok
@@ -669,7 +671,7 @@ dtc_cmp6:
     addu  $t2, $t2, $t3
     lw    $s3, 0($t2)           # s3 = wptr (0..49)
 
-    # loop 0..49: idx = (wptr + k) % 50  (ordem: mais antigo -> mais novo)
+    # loop 0..49: idx = (wptr + k) % 50
     li    $t4, 0                # k
 dtc_loop:
     li    $t5, 50
@@ -703,7 +705,7 @@ dtc_next:
 
 dtc_not_found:
     li    $v0, 4
-    la    $a0, msg_err_cli_inexist   # já existe no seu data.asm
+    la    $a0, msg_err_cli_inexist
     syscall
     li    $v0, 1
     j     dtc_epilogue
@@ -882,10 +884,13 @@ dtd_epilogue:
     addiu $sp, $sp, 40
     jr    $ra
 
+# --------------------------------------------------------------
+# Aliases (nomes esperados pelo main.asm)
+# --------------------------------------------------------------
+handle_dump_trans_cred:
+    j handle_dump_trans_credito
+    nop
 
-###############################################################
-# Se ainda não tiver os literais de prefixo no data.asm, cole:
-# (se já tiver, NÃO duplique!)
-#   str_cmd_dumpcred: .asciiz "dump_trans-cred-"
-#   str_cmd_dumpdeb:  .asciiz "dump_trans-deb-"
-###############################################################
+handle_dump_trans_deb:
+    j handle_dump_trans_debito
+    nop

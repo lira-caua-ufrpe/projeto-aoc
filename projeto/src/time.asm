@@ -1,286 +1,523 @@
-# ============================================================
-# time.asm – data/hora e atualização com syscall 30
-# ============================================================
+# time.asm � R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
+
+############################
+# Configura��o anti-turbo  #
+############################
+.data
+MS_PER_SEC:       .word 1000      # 1s l�gico = 1000 ms
+DELTA_CAP_SEC:    .word 5         # no m�x. 5s por chamada (evita saltos)
 
 .text
-.globl tick_relogio, data_hora_cmd
-
-# Posições fixas na string "DD/MM/AAAA - HH:MM:SS"
-.eqv IDX_H1 13
-.eqv IDX_H2 14
-.eqv IDX_M1 16
-.eqv IDX_M2 17
-.eqv IDX_S1 19
-.eqv IDX_S2 20
+.globl tick_datetime
+.globl handle_datetime_set
+.globl handle_datetime_show
 
 # ------------------------------------------------------------
-# data_hora_cmd(a0=DDMMAAAA, a1=HHMMSS) -> v0=0 ok, v0=-1 erro
-#   - Valida faixas básicas (dia 1..31, mes 1..12, hora 0..23, min/seg 0..59)
-#   - Formata datahora como "DD/MM/AAAA - HH:MM:SS"
-#   - Zera last_ms e acc_ms
+# tick_datetime()
 # ------------------------------------------------------------
-data_hora_cmd:
-    # ---- validar strings (tamanho mínimo e dígitos) ----
-    # helper interno: valida N dígitos e converte para inteiro (v0)
-    # parse dia (2)
-    move $t0,$a0                # ptr DDMMAAAA
-    li   $a2,2
-    jal  atoi_ndigits           # v0 = dia
-    move $s0,$v0
-    bltz $s0, dh_err
-    # parse mes (2)
-    addi $a0,$t0,2
-    li   $a2,2
-    jal  atoi_ndigits
-    move $s1,$v0
-    bltz $s1, dh_err
-    # parse ano (4)
-    addi $a0,$t0,4
-    li   $a2,4
-    jal  atoi_ndigits
-    move $s2,$v0
-    bltz $s2, dh_err
+tick_datetime:
+    addiu $sp,$sp,-44
+    sw $ra,40($sp)
+    sw $s0,36($sp)
+    sw $s1,32($sp)
+    sw $s2,28($sp)
+    sw $s3,24($sp)
+    sw $s4,20($sp)
+    sw $s5,16($sp)
+    sw $s6,12($sp)
+    sw $s7,8($sp)
 
-    # parse hora (2)
-    move $t1,$a1                # ptr HHMMSS
-    move $a0,$t1
-    li   $a2,2
-    jal  atoi_ndigits
-    move $s3,$v0
-    bltz $s3, dh_err
-    # parse minuto (2)
-    addi $a0,$t1,2
-    li   $a2,2
-    jal  atoi_ndigits
-    move $s4,$v0
-    bltz $s4, dh_err
-    # parse segundo (2)
-    addi $a0,$t1,4
-    li   $a2,2
-    jal  atoi_ndigits
-    move $s5,$v0
-    bltz $s5, dh_err
-
-    # ---- faixas básicas ----
-    li $t2,1
-    blt $s0,$t2, dh_err       # dia >=1
-    li $t2,31
-    bgt $s0,$t2, dh_err
-    li $t2,1
-    blt $s1,$t2, dh_err       # mes >=1
-    li $t2,12
-    bgt $s1,$t2, dh_err
-    li $t2,23
-    bgt $s3,$t2, dh_err
-    li $t2,59
-    bgt $s4,$t2, dh_err
-    bgt $s5,$t2, dh_err
-
-    # ---- escrever string "DD/MM/AAAA - HH:MM:SS" ----
-    la   $t0, datahora
-    # DD
-    jal  put2                  # usa $s0 (dia)
-    move $a0,$s1               # troca param para put2: mes
-    addi $t0,$t0,3             # pula "DD/"
-    jal  put2
-    # ano (4)
-    move $a0,$s2
-    addi $t0,$t0,3             # pula "MM/"
-    jal  put4
-    # " - "
-    sb   ' ',0($t0); addi $t0,$t0,1
-    sb   '-',0($t0); addi $t0,$t0,1
-    sb   ' ',0($t0); addi $t0,$t0,1
-    # HH
-    move $a0,$s3
-    jal  put2
-    # :
-    sb   ':',0($t0); addi $t0,$t0,1
-    # MM
-    move $a0,$s4
-    jal  put2
-    # :
-    sb   ':',0($t0); addi $t0,$t0,1
-    # SS
-    move $a0,$s5
-    jal  put2
-    sb   $zero,0($t0)          # '\0' final
-
-    # zera contadores
-    la  $t3,last_ms; sw $zero,0($t3)
-    la  $t4,acc_ms;  sw $zero,0($t4)
-    move $v0,$zero
-    jr $ra
-
-dh_err:
-    li $v0,-1
-    jr $ra
-
-# ---- helpers de escrita decimal zero-padded ----
-# put2: escreve dois dígitos decimais de a0 em datahora (usa e avança t0)
-put2:
-    # a0 = valor 0..99, t0 = ptr de escrita
-    li  $t5,10
-    div $a0,$t5
-    mfhi $t6       # unidade
-    mflo $t7       # dezena
-    addi $t7,$t7,'0'
-    addi $t6,$t6,'0'
-    sb $t7,0($t0)
-    addi $t0,$t0,1
-    sb $t6,0($t0)
-    addi $t0,$t0,1
-    jr $ra
-
-# put4: escreve quatro dígitos decimais de a0 (AAAA)
-put4:
-    # calcula milhar, centena, dezena, unidade
-    move $t8,$a0
-    li $t5,1000
-    div $t8,$t5; mflo $t7; mfhi $t8   # t7=milhar, t8=resto
-    addi $t7,$t7,'0'; sb $t7,0($t0); addi $t0,$t0,1
-    li $t5,100
-    div $t8,$t5; mflo $t7; mfhi $t8
-    addi $t7,$t7,'0'; sb $t7,0($t0); addi $t0,$t0,1
-    li $t5,10
-    div $t8,$t5; mflo $t7; mfhi $t8
-    addi $t7,$t7,'0'; sb $t7,0($t0); addi $t0,$t0,1
-    addi $t8,$t8,'0'; sb $t8,0($t0); addi $t0,$t0,1
-    jr $ra
-
-# atoi_ndigits(a0=ptr, a2=N) -> v0=int (>=0) ou -1 inválido
-atoi_ndigits:
-    move $v0,$zero
-    move $t9,$a2
-1:  beq $t9,$zero, 2f
-    lb  $t1,0($a0)
-    blt $t1,'0', fail
-    bgt $t1,'9', fail
-    addi $t1,$t1,-48
-    mul $v0,$v0,10
-    add $v0,$v0,$t1
-    addi $a0,$a0,1
-    addi $t9,$t9,-1
-    j 1b
-2:  jr $ra
-fail:
-    li $v0,-1
-    jr $ra
-
-# ------------------------------------------------------------
-# tick_relogio()
-# - lê syscall 30 (ms), acumula; a cada >=1000ms incrementa SS
-# - faz carry para MM e HH. (dia incrementa quando HH passa 23→00)
-# ------------------------------------------------------------
-tick_relogio:
+    # now_ms (syscall 30 retorna em $a0)
     li  $v0,30
-    syscall                   # v0 = ms desde start
-    la  $t0,last_ms
-    lw  $t1,0($t0)
-    beq $t1,$zero, init_ms
-    sub $t2,$v0,$t1           # delta ms
-    la  $t3,acc_ms
-    lw  $t4,0($t3)
-    add $t4,$t4,$t2
-    # enquanto >=1000, incrementa 1s
-inc_loop:
-    li  $t5,1000
-    blt $t4,$t5, store_done
-    addi $t4,$t4,-1000
-    # incrementa SS
-    la  $t6,datahora
-    addi $t6,$t6,IDX_S2
-    lb  $t7,0($t6)
-    addi $t7,$t7,1
-    ble $t7,'9', write_s2
-    # carry para S1
-    li  $t7,'0'
-write_s2:
-    sb  $t7,0($t6)
-    bne $t7,'0', inc_end       # não houve carry
-    # S2 voltou a '0' -> precisa incrementar S1
-    addi $t6,$t6,-1           # aponta S1
-    lb  $t7,0($t6)
-    addi $t7,$t7,1
-    ble $t7,'5', write_s1
-    li  $t7,'0'               # 60 -> zera SS e carrega para MM
-write_s1:
-    sb  $t7,0($t6)
-    bne $t7,'0', inc_end
-    # carry para MM
-    la  $t8,datahora
-    addi $t8,$t8,IDX_M2
-    lb  $t9,0($t8)
-    addi $t9,$t9,1
-    ble $t9,'9', w_m2
-    li  $t9,'0'
-w_m2:
-    sb  $t9,0($t8)
-    bne $t9,'0', inc_end
-    addi $t8,$t8,-1           # M1
-    lb  $t9,0($t8)
-    addi $t9,$t9,1
-    ble $t9,'5', w_m1
-    li  $t9,'0'
-w_m1:
-    sb  $t9,0($t8)
-    bne $t9,'0', inc_end
-    # carry para HH
-    la  $t8,datahora
-    addi $t8,$t8,IDX_H2
-    lb  $t9,0($t8)
-    addi $t9,$t9,1
-    ble $t9,'9', w_h2_maybe
-    li  $t9,'0'
-w_h2_maybe:
-    sb  $t9,0($t8)
-    # se H1=='2' e H2 passou de '3', zera HH e incrementa dia
-    la  $s7,datahora
-    addi $s7,$s7,IDX_H1
-    lb  $s6,0($s7)
-    beq $s6,'2', chk_24
-    bne $t9,'0', inc_end       # sem carry total
-    # H2 voltou a zero -> incrementar H1
-    addi $s7,$s7,0
-    addi $s6,$s6,1
-    ble $s6,'2', w_h1_only
-    li  $s6,'0'
-w_h1_only:
-    sb  $s6,0($s7)
-    bne $s6,'0', inc_end
-    j inc_day
-chk_24:
-    # se H1==2 e H2>3, volta 00 e incrementa dia
-    ble $t9,'3', inc_end
-    li  $t9,'0'; sb $t9,0($t8)
-    li  $s6,'0'; sb $s6,0($s7)
-    j inc_day
+    syscall
+    move $t0,$a0
 
-inc_day:
-    # incrementa DD (não valida mês/ano – simplificação)
-    la  $t8,datahora
-    lb  $t9,0($t8)            # D1
-    lb  $s0,1($t8)            # D2
-    addi $s0,$s0,1
-    ble $s0,'9', w_d2
-    li  $s0,'0'
-w_d2:
-    sb  $s0,1($t8)
-    bne $s0,'0', inc_end
-    addi $t9,$t9,1
-    ble $t9,'3', w_d1
-    li  $t9,'0'
-w_d1:
-    sb  $t9,0($t8)
+    la  $t1,ms_last
+    lw  $t2,0($t1)           # last_ms
+    beq $t2,$zero, TD_INIT   # primeira chamada ap�s reset/set
 
-inc_end:
-    j inc_loop
+    # delta = now - last ; se wrap (now<last) s� atualiza last
+    subu $t3,$t0,$t2         # delta_ms
+    sltu $t4,$t0,$t2
+    bne  $t4,$zero, TD_SAVE_ONLY
 
-store_done:
-    sw  $t4,0($t3)
-    sw  $v0,0($t0)
+    # ---------- clamp do delta ----------
+    la   $t7,MS_PER_SEC
+    lw   $t7,0($t7)          # 1000
+    la   $t8,DELTA_CAP_SEC
+    lw   $t8,0($t8)          # N
+    mul  $t9,$t7,$t8         # max_delta = 1000*N
+    sltu $a2,$t9,$t3         # a2=1 se delta > max
+    beq  $a2,$zero, TD_CLAMP_OK
+    move $t3,$t9
+TD_CLAMP_OK:
+
+    # total_ms = ms_accum + delta
+    la  $t5,ms_accum
+    lw  $t6,0($t5)
+    addu $t6,$t6,$t3
+
+    # q = total_ms / 1000 ; r = total_ms % 1000
+    divu $t6,$t7
+    mflo $s0                 # q: segundos a adicionar
+    mfhi $t6                 # r: resto ms
+    sw   $t6,0($t5)          # ms_accum = r
+    beq  $s0,$zero, TD_SAVE_ONLY
+
+# ---------- adiciona q segundos com rollover ----------
+TD_ADD_ONE_SEC:
+    beq  $s0,$zero, TD_SAVE_ONLY
+
+    # ++sec
+    la  $s1,curr_sec
+    lw  $s2,0($s1)
+    addiu $s2,$s2,1
+    li  $a0,60
+    slt  $a1,$s2,$a0
+    bne  $a1,$zero, TD_SAVESEC
+    move $s2,$zero
+
+    # ++min
+    la  $s3,curr_min
+    lw  $s4,0($s3)
+    addiu $s4,$s4,1
+    li  $a0,60
+    slt  $a1,$s4,$a0
+    bne  $a1,$zero, TD_SAVEMIN
+    move $s4,$zero
+
+    # ++hour
+    la  $s5,curr_hour
+    lw  $s6,0($s5)
+    addiu $s6,$s6,1
+    li  $a0,24
+    slt  $a1,$s6,$a0
+    bne  $a1,$zero, TD_SAVEHOUR
+    move $s6,$zero
+
+    # ++day
+    la  $s7,curr_day
+    lw  $t8,0($s7)
+    addiu $t8,$t8,1
+
+    # dias do m�s
+    la  $a0,curr_mon
+    lw  $a0,0($a0)
+    la  $a1,curr_year
+    lw  $a1,0($a1)
+    jal days_in_month
+    move $t9,$v0
+
+    slt  $a1,$t8,$t9
+    bne  $a1,$zero, TD_SAVEDAY
+    beq  $t8,$t9, TD_SAVEDAY
+    li   $t8,1
+
+    # ++mes (e possivelmente ++ano)
+    la  $t6,curr_mon
+    lw  $t7,0($t6)
+    addiu $t7,$t7,1
+    li   $a0,13
+    slt  $a1,$t7,$a0
+    bne  $a1,$zero, TD_SAVEMON
+    li   $t7,1
+    la   $a1,curr_year
+    lw   $v1,0($a1)
+    addiu $v1,$v1,1
+    sw   $v1,0($a1)
+
+TD_SAVEMON:
+    sw  $t7,0($t6)
+TD_SAVEDAY:
+    sw  $t8,0($s7)
+TD_SAVEHOUR:
+    sw  $s6,0($s5)
+TD_SAVEMIN:
+    sw  $s4,0($s3)
+TD_SAVESEC:
+    sw  $s2,0($s1)
+
+    addiu $s0,$s0,-1
+    j TD_ADD_ONE_SEC
+
+TD_SAVE_ONLY:
+    sw  $t0,0($t1)           # ms_last = now_ms
+    j   TD_END
+
+TD_INIT:
+    sw  $t0,0($t1)           # ms_last = now
+    la  $t5,ms_accum
+    sw  $zero,0($t5)
+
+TD_END:
+    lw $s7,8($sp)
+    lw $s6,12($sp)
+    lw $s5,16($sp)
+    lw $s4,20($sp)
+    lw $s3,24($sp)
+    lw $s2,28($sp)
+    lw $s1,32($sp)
+    lw $s0,36($sp)
+    lw $ra,40($sp)
+    addiu $sp,$sp,44
     jr  $ra
 
-init_ms:
-    sw  $v0,0($t0)
+# ------------------------------------------------------------
+# days_in_month(a0=mes 1..12, a1=ano) -> v0=dias
+# ------------------------------------------------------------
+days_in_month:
+    li  $t0,2
+    bne $a0,$t0, DIM_NOT_FEB
+
+    # bissexto
+    move $t1,$a1
+    li   $t2,400
+    divu $t1,$t2
+    mfhi $t3
+    beq  $t3,$zero, DIM_FEB_29
+
+    move $t1,$a1
+    li   $t2,4
+    divu $t1,$t2
+    mfhi $t3
+    bne  $t3,$zero, DIM_FEB_28
+
+    move $t1,$a1
+    li   $t2,100
+    divu $t1,$t2
+    mfhi $t3
+    beq  $t3,$zero, DIM_FEB_28
+
+DIM_FEB_29:
+    li $v0,29
+    jr $ra
+DIM_FEB_28:
+    li $v0,28
+    jr $ra
+
+DIM_NOT_FEB:
+    la  $t0,month_days_norm
+    addiu $a0,$a0,-1
+    sll $a0,$a0,2
+    addu $t0,$t0,$a0
+    lw  $v0,0($t0)
     jr  $ra
+
+# ------------------------------------------------------------
+# handle_datetime_set(a0=inp_buf) -> v0=1/0
+# ------------------------------------------------------------
+handle_datetime_set:
+    addiu $sp,$sp,-40
+    sw $ra,36($sp)
+    sw $s0,32($sp)
+    sw $s1,28($sp)
+    sw $s2,24($sp)
+    sw $s3,20($sp)
+    sw $s4,16($sp)
+    sw $s5,12($sp)
+    sw $s6,8($sp)
+    sw $s7,4($sp)
+
+    move $t0,$a0
+    la   $t1,str_cmd_time_set
+HDS_PREF:
+    lb   $t2,0($t1)
+    beq  $t2,$zero,HDS_PREF_OK
+    lb   $t3,0($t0)
+    bne  $t2,$t3,HDS_NOT_MINE
+    addiu $t1,$t1,1
+    addiu $t0,$t0,1
+    j    HDS_PREF
+
+HDS_PREF_OK:
+    jal read_2digits
+    move $s0,$v0
+    lb   $t2,0($t0)
+    li   $t3,'/'
+    bne  $t2,$t3,HDS_BADFMT
+    addiu $t0,$t0,1
+
+    jal read_2digits
+    move $s1,$v0
+    lb   $t2,0($t0)
+    li   $t3,'/'
+    bne  $t2,$t3,HDS_BADFMT
+    addiu $t0,$t0,1
+
+    jal read_4digits
+    move $s2,$v0
+
+    lb $t2,0($t0)
+    li $t3,'-'
+    bne $t2,$t3,HDS_BADFMT
+    addiu $t0,$t0,1
+    lb $t2,0($t0)
+    li $t3,' '
+    bne $t2,$t3,HDS_HH
+    addiu $t0,$t0,1
+
+HDS_HH:
+    jal read_2digits
+    move $s3,$v0
+    lb   $t2,0($t0)
+    li   $t3,':'
+    bne  $t2,$t3,HDS_BADFMT
+    addiu $t0,$t0,1
+
+    jal read_2digits
+    move $s4,$v0
+    lb   $t2,0($t0)
+    li   $t3,':'
+    bne  $t2,$t3,HDS_BADFMT
+    addiu $t0,$t0,1
+
+    jal read_2digits
+    move $s5,$v0
+
+    # valida��es
+    blez $s0,HDS_RANGE
+    blez $s1,HDS_RANGE
+    blez $s2,HDS_RANGE
+    li   $t2,12
+    bgt  $s1,$t2,HDS_RANGE
+    li   $t2,23
+    bgt  $s3,$t2,HDS_RANGE
+    li   $t2,59
+    bgt  $s4,$t2,HDS_RANGE
+    bgt  $s5,$t2,HDS_RANGE
+
+    move $a0,$s1
+    move $a1,$s2
+    jal  days_in_month
+    move $t2,$v0
+    bgt  $s0,$t2,HDS_RANGE
+
+    # aplica
+    la $t2,curr_day
+    sw $s0,0($t2)
+    la $t2,curr_mon
+    sw $s1,0($t2)
+    la $t2,curr_year
+    sw $s2,0($t2)
+    la $t2,curr_hour
+    sw $s3,0($t2)
+    la $t2,curr_min
+    sw $s4,0($t2)
+    la $t2,curr_sec
+    sw $s5,0($t2)
+
+    # reinicia base: syscall 30 -> $a0
+    li  $v0,30
+    syscall
+    la  $t2,ms_last
+    sw  $a0,0($t2)
+    la  $t2,ms_accum
+    sw  $zero,0($t2)
+
+    li  $v0,4
+    la  $a0,msg_time_set_ok
+    syscall
+    li  $v0,1
+    j   HDS_END
+
+HDS_RANGE:
+    li $v0,4
+    la $a0,msg_time_range
+    syscall
+    li $v0,1
+    j  HDS_END
+
+HDS_BADFMT:
+    li $v0,4
+    la $a0,msg_time_badfmt
+    syscall
+    li $v0,1
+    j  HDS_END
+
+HDS_NOT_MINE:
+    move $v0,$zero
+
+HDS_END:
+    lw $s7,4($sp)
+    lw $s6,8($sp)
+    lw $s5,12($sp)
+    lw $s4,16($sp)
+    lw $s3,20($sp)
+    lw $s2,24($sp)
+    lw $s1,28($sp)
+    lw $s0,32($sp)
+    lw $ra,36($sp)
+    addiu $sp,$sp,40
+    jr $ra
+
+# ------------------------------------------------------------
+# handle_datetime_show(a0=inp_buf) -> v0=1/0
+# ------------------------------------------------------------
+handle_datetime_show:
+    addiu $sp,$sp,-16
+    sw $ra,12($sp)
+    sw $s0,8($sp)
+    sw $s1,4($sp)
+
+    move $t0,$a0
+    la   $t1,str_cmd_time_show
+HDSH_PREF:
+    lb   $t2,0($t1)
+    beq  $t2,$zero,HDSH_GO
+    lb   $t3,0($t0)
+    bne  $t2,$t3,HDSH_NOT
+    addiu $t1,$t1,1
+    addiu $t0,$t0,1
+    j    HDSH_PREF
+HDSH_GO:
+    jal  tick_datetime
+    jal  print_datetime
+    li   $v0,1
+    j    HDSH_END
+HDSH_NOT:
+    move $v0,$zero
+HDSH_END:
+    lw $s1,4($sp)
+    lw $s0,8($sp)
+    lw $ra,12($sp)
+    addiu $sp,$sp,16
+    jr $ra
+
+# ------------------------------------------------------------
+# print_datetime(), print_two(), print_four(), read_2digits(), read_4digits()
+# ------------------------------------------------------------
+print_datetime:
+    addiu $sp,$sp,-8
+    sw    $ra,4($sp)
+    sw    $t0,0($sp)
+
+    la  $t0,curr_day
+    lw  $a0,0($t0)
+    jal print_two
+    li  $v0,11
+    li  $a0,'/'
+    syscall
+
+    la  $t0,curr_mon
+    lw  $a0,0($t0)
+    jal print_two
+    li  $v0,11
+    li  $a0,'/'
+    syscall
+
+    la  $t0,curr_year
+    lw  $a0,0($t0)
+    jal print_four
+    li  $v0,11
+    li  $a0,' '
+    syscall
+    li  $v0,11
+    li  $a0,'-'
+    syscall
+    li  $v0,11
+    li  $a0,' '
+    syscall
+
+    la  $t0,curr_hour
+    lw  $a0,0($t0)
+    jal print_two
+    li  $v0,11
+    li  $a0,':'
+    syscall
+
+    la  $t0,curr_min
+    lw  $a0,0($t0)
+    jal print_two
+    li  $v0,11
+    li  $a0,':'
+    syscall
+
+    la  $t0,curr_sec
+    lw  $a0,0($t0)
+    jal print_two
+    li  $v0,11
+    li  $a0,10
+    syscall
+
+    lw    $t0,0($sp)
+    lw    $ra,4($sp)
+    addiu $sp,$sp,8
+    jr  $ra
+
+print_two:
+    li  $t0,10
+    divu $a0,$t0
+    mflo $t1
+    mfhi $t2
+    li  $v0,11
+    addiu $a0,$t1,48
+    syscall
+    li  $v0,11
+    addiu $a0,$t2,48
+    syscall
+    jr  $ra
+
+print_four:
+    li  $t0,1000
+    divu $a0,$t0
+    mflo $t1
+    mfhi $t3
+    li  $v0,11
+    addiu $a0,$t1,48
+    syscall
+
+    li  $t0,100
+    divu $t3,$t0
+    mflo $t1
+    mfhi $t3
+    li  $v0,11
+    addiu $a0,$t1,48
+    syscall
+
+    li  $t0,10
+    divu $t3,$t0
+    mflo $t1
+    mfhi $t2
+    li  $v0,11
+    addiu $a0,$t1,48
+    syscall
+    li  $v0,11
+    addiu $a0,$t2,48
+    syscall
+    jr  $ra
+
+read_2digits:
+    lb  $t1,0($t0)
+    blt $t1,48,R2D_BAD
+    bgt $t1,57,R2D_BAD
+    addiu $t1,$t1,-48
+    addiu $t0,$t0,1
+    lb  $t2,0($t0)
+    blt $t2,48,R2D_BAD
+    bgt $t2,57,R2D_BAD
+    addiu $t2,$t2,-48
+    addiu $t0,$t0,1
+    mul $v0,$t1,10
+    addu $v0,$v0,$t2
+    jr  $ra
+R2D_BAD:
+    li $v0,-1
+    jr $ra
+
+read_4digits:
+    move $v0,$zero
+    li   $t3,4
+R4D_L:
+    lb  $t1,0($t0)
+    blt $t1,48,R4D_BAD
+    bgt $t1,57,R4D_BAD
+    addiu $t1,$t1,-48
+    mul $v0,$v0,10
+    addu $v0,$v0,$t1
+    addiu $t0,$t0,1
+    addiu $t3,$t3,-1
+    bgtz $t3,R4D_L
+    jr  $ra
+R4D_BAD:
+    li $v0,-1
+    jr $ra
