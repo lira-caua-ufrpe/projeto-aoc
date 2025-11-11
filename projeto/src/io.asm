@@ -1,4 +1,4 @@
-# io.asm — rotinas básicas de E/S via syscalls (terminal MARS)
+# io.asm â€” rotinas bÃ¡sicas de E/S via syscalls (terminal MARS)
 
 .text
 .globl print_str
@@ -35,7 +35,7 @@ read_line:
     move  $a0, $t0
     move  $a1, $t1
     li    $v0, 8          # read_string
-    syscall               # lê até (maxlen-1), termina com '\0'
+    syscall               # lÃª atÃ© (maxlen-1), termina com '\0'
 
     # varre para achar '\n' e contar len
     move  $t2, $t0        # cursor
@@ -51,7 +51,7 @@ RL_LOOP:
 RL_NEWLINE:
     # sobrescreve '\n' com '\0' e encerra
     sb    $zero, 0($t2)
-    # v0 já é o len sem '\n'
+    # v0 jÃ¡ Ã© o len sem '\n'
     j     RL_CLEANUP
 
 RL_END:
@@ -70,7 +70,7 @@ RL_CLEANUP:
 
 # ------------------------------------------------------------
 # strip_line_end(a0=buf) -> v0=len
-# Remove \n \r espaço e \t à direita; retorna novo comprimento.
+# Remove \n \r espaÃ§o e \t Ã  direita; retorna novo comprimento.
 # ------------------------------------------------------------
 strip_line_end:
     beq  $a0, $zero, sle_empty
@@ -84,7 +84,7 @@ sle_scan:
     addi $t0, $t0, 1
     j    sle_scan
 
-# t0 aponta para o '\0' -> último índice real é t0-1
+# t0 aponta para o '\0' -> Ãºltimo Ã­ndice real Ã© t0-1
 sle_at_end:
     addi $t0, $t0, -1
     blt  $t0, $a0, sle_empty

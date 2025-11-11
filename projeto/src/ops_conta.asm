@@ -1,9 +1,9 @@
-# ops_conta.asm — handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
+# ops_conta.asm â€” handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
 
 .text
 .globl handle_conta_cadastrar
 
-# handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se não era esse comando
+# handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se nÃ£o era esse comando
 handle_conta_cadastrar:
     # --- PROLOGO: salvar RA e S-registers usados ---
     addiu $sp, $sp, -32
@@ -25,7 +25,7 @@ cc_pref_loop:
     j    cc_pref_loop
 
 cc_pref_ok:
-    # -------- CPF (11 dígitos) até '-' --------
+    # -------- CPF (11 dÃ­gitos) atÃ© '-' --------
     la   $t4, cc_buf_cpf
     li   $t5, 0
 cc_cpf_loop:
@@ -47,7 +47,7 @@ cc_cpf_end:
     bne  $t5, $t7,  cc_badcpf
     addi $t0, $t0, 1                # pula '-'
 
-    # -------- CONTA (6 dígitos) até '-' --------
+    # -------- CONTA (6 dÃ­gitos) atÃ© '-' --------
     la   $t4, cc_buf_acc
     li   $t5, 0
 cc_acc_loop:
@@ -69,7 +69,7 @@ cc_acc_end:
     bne  $t5, $t7,  cc_badacc
     addi $t0, $t0, 1                # pula '-'
 
-    # -------- NOME (trim left; máx 32) --------
+    # -------- NOME (trim left; mÃ¡x 32) --------
 cc_name_trim:
     lb   $t6, 0($t0)
     beq  $t6, $zero, cc_badname
@@ -96,7 +96,7 @@ cc_name_end:
 
     # -------- Calcula DV (mod11 pesos 2..7, d0 = menos significativo) --------
     la   $t0, cc_buf_acc
-    addi $t0, $t0, 5        # aponta pro último dígito
+    addi $t0, $t0, 5        # aponta pro Ãºltimo dÃ­gito
     li   $t1, 2             # peso
     move $t2, $zero         # soma
     li   $t3, 6             # contador
@@ -174,7 +174,7 @@ cc_next_slot:
 cc_scan_end:
     bltz $s2, cc_full
 
-    # -------- Escreve no índice s2 --------
+    # -------- Escreve no Ã­ndice s2 --------
     # ponteiros base
     la   $t0, clientes_usado
     la   $t1, clientes_cpf
@@ -222,7 +222,7 @@ cc_scan_end:
 
     sw   $zero, 0($t5)              # saldo = 0
     lw   $a0, LIMITE_PADRAO_CENT
-    sw   $a0, 0($t6)                # limite = padrão
+    sw   $a0, 0($t6)                # limite = padrÃ£o
     sw   $zero, 0($t7)              # devido = 0
 
     # sucesso
