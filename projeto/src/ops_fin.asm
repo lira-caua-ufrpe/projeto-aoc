@@ -197,7 +197,7 @@ pd_head_ok:
     bltz  $t6, pd_cnt_zero         # se <0 -> zera
     li    $t9, 50
     sltu  $v1, $t6, $t9            # v1=1 se count < 50
-    bne   $v1, $zero, pd_cnt_ok    # se <50, ok; senão, zera
+    beq   $v1, $zero, pd_cnt_keep  # se >=50, mantém
 pd_cnt_zero:
     move  $t6, $zero
 pd_cnt_ok:
@@ -445,7 +445,7 @@ pc_head_ok:
     bltz  $t9, pc_cnt_zero         # se <0 -> zera
     li    $s2, 50
     sltu  $v1, $t9, $s2            # v1=1 se count < 50
-    bne   $v1, $zero, pc_cnt_ok    # se <50, ok; senão, zera
+    beq   $v1, $zero, pc_cnt_keep  # se >=50, mantém
 pc_cnt_zero:
     move  $t9, $zero
 pc_cnt_ok:
@@ -681,7 +681,16 @@ al_done:
 
 .data
 dump_hdr_cred: .asciiz "LOG credito (50 posicoes, mais antigo -> mais novo)\n"
-dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)\n"
+dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)
+"
+
+# Aceita ambos os prefixos (evita mismatch com main/help)
+#  - "dump_cred-" e "dump_trans-cred-"
+#  - "dump_deb-"  e "dump_trans-deb-"
+str_dump_cred_local:       .asciiz "dump_cred-"
+str_dump_trans_cred_local: .asciiz "dump_trans-cred-"
+str_dump_deb_local:        .asciiz "dump_deb-"
+str_dump_trans_deb_local:  .asciiz "dump_trans-deb-"
 
 .text
 
@@ -696,17 +705,31 @@ handle_dump_trans_credito:
     sw    $s2, 24($sp)
     sw    $s3, 20($sp)
 
+    move  $t8, $a0                  # salva ptr original
+    # tenta 1) dump_cred-  2) dump_trans-cred-
     move  $t0, $a0
-    la    $t1, str_cmd_dumpcred
+    la    $t1, str_dump_cred_local
+    move  $t9, $zero                # 0 = estamos no 1o prefixo; 1 = já tentamos o alternativo
+
 dtc_pref:
     lb    $t2, 0($t1)
-    beq   $t2, $zero, dtc_pref_ok
+    beq   $t2, $zero, dtc_pref_ok   # terminou prefixo -> ok
     lb    $t3, 0($t0)
-    bne   $t2, $t3, dtc_not_mine
-    addi  $t0, $t0, 1
-    addi  $t1, $t1, 1
+    beq   $t2, $t3, dtc_pref_adv
+    # mismatch -> se ainda não tentamos o alternativo, troca prefixo e recomeça
+    bne   $t9, $zero, dtc_not_mine
+    li    $t9, 1
+    move  $t0, $t8
+    la    $t1, str_dump_trans_cred_local
     j     dtc_pref
     nop
+
+dtc_pref_adv:
+    addi  $t1, $t1, 1
+    addi  $t0, $t0, 1
+    j     dtc_pref
+    nop
+
 dtc_pref_ok:
     la    $t4, cc_buf_acc
     li    $t5, 0
@@ -851,17 +874,30 @@ handle_dump_trans_debito:
     sw    $s2, 24($sp)
     sw    $s3, 20($sp)
 
+    move  $t8, $a0
+    # tenta 1) dump_deb-  2) dump_trans-deb-
     move  $t0, $a0
-    la    $t1, str_cmd_dumpdeb
+    la    $t1, str_dump_deb_local
+    move  $t9, $zero
+
 dtd_pref:
     lb    $t2, 0($t1)
     beq   $t2, $zero, dtd_pref_ok
     lb    $t3, 0($t0)
-    bne   $t2, $t3, dtd_not_mine
-    addi  $t0, $t0, 1
-    addi  $t1, $t1, 1
+    beq   $t2, $t3, dtd_pref_adv
+    bne   $t9, $zero, dtd_not_mine
+    li    $t9, 1
+    move  $t0, $t8
+    la    $t1, str_dump_trans_deb_local
     j     dtd_pref
     nop
+
+dtd_pref_adv:
+    addi  $t1, $t1, 1
+    addi  $t0, $t0, 1
+    j     dtd_pref
+    nop
+
 dtd_pref_ok:
     la    $t4, cc_buf_acc
     li    $t5, 0
@@ -886,6 +922,7 @@ dtd_acc:
     beq   $s1, $t7, dtd_dv_ok
     blt   $s1, 48, dtd_badfmt
     bgt   $s1, 57, dtd_badfmt
+
 dtd_dv_ok:
 
     lw    $t9, MAX_CLIENTS
@@ -941,6 +978,7 @@ dtd_loop:
     sltiu $t7, $t6, 50
     bne   $t7, $zero, dtd_idx_ok
     addi  $t6, $t6, -50
+
 dtd_idx_ok:
     sll   $t6, $t6, 2
     addu  $t8, $s2, $t6
@@ -996,7 +1034,7 @@ dtd_epilogue:
     nop
 
 # --------------------------------------------------------------
-# Aliases
+# Aliases (nomes esperados pelo main.asm)
 # --------------------------------------------------------------
 handle_dump_trans_cred:
     j handle_dump_trans_credito
