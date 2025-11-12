@@ -1,31 +1,33 @@
-# data.asm â€” dados globais e constantes do projeto (R1..R4)
+# data.asm — dados globais e constantes do projeto (R1..R4)
 
-.data
-# ---- ExportaÃ§Ãµes (usadas em outros arquivos) ----
-.globl MAX_CLIENTS, NAME_MAX, CPF_STR_LEN, ACC_NUM_LEN, ACC_DV_LEN, LIMITE_PADRAO_CENT, TRANS_MAX
-.globl inp_buf, bank_name, banner, help_txt, msg_invalid, msg_bye
-.globl str_help, str_exit
-.globl clientes_usado, clientes_cpf, clientes_conta, clientes_dv, clientes_nome
-.globl clientes_saldo_cent, clientes_limite_cent, clientes_devido_cent
-.globl str_cmd_cc_prefix, str_cmd_pay_debito, str_cmd_pay_credito, str_cmd_alt_limite
-.globl msg_cc_ok, msg_cc_cpf_exists, msg_cc_acc_exists, msg_cc_full
-.globl msg_cc_badfmt, msg_cc_badcpf, msg_cc_badacc, msg_cc_badname
-.globl msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf
-.globl msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
-# R3 â€“ transaÃ§Ãµes
-.globl trans_deb_vals, trans_cred_vals
-.globl trans_deb_head, trans_deb_count, trans_deb_wptr
-.globl trans_cred_head, trans_cred_count, trans_cred_wptr
-# comandos de dump
-.globl str_cmd_dumpcred, str_cmd_dumpdeb
-# buffers temporÃ¡rios
-.globl cc_buf_cpf, cc_buf_acc, cc_buf_nome
-# R4 â€“ data/hora
-.globl curr_day, curr_mon, curr_year, curr_hour, curr_min, curr_sec
-.globl ms_last, ms_accum, month_days_norm
-.globl str_cmd_time_set, str_cmd_time_show, msg_time_set_ok, msg_time_badfmt, msg_time_range
-# buffer usado por formatar_real (transacoes.asm)
-.globl buffer_valor_formatado
+        .data
+
+# ---- Exportações (usadas em outros arquivos) ----
+# IMPORTANTE: Não declare .globl destes símbolos em nenhum outro arquivo.
+        .globl  MAX_CLIENTS, NAME_MAX, CPF_STR_LEN, ACC_NUM_LEN, ACC_DV_LEN, LIMITE_PADRAO_CENT, TRANS_MAX
+        .globl  inp_buf, bank_name, banner, help_txt, msg_invalid, msg_bye
+        .globl  str_help, str_exit
+        .globl  clientes_usado, clientes_cpf, clientes_conta, clientes_dv, clientes_nome
+        .globl  clientes_saldo_cent, clientes_limite_cent, clientes_devido_cent
+        .globl  str_cmd_cc_prefix, str_cmd_pay_debito, str_cmd_pay_credito, str_cmd_alt_limite
+        .globl  msg_cc_ok, msg_cc_cpf_exists, msg_cc_acc_exists, msg_cc_full
+        .globl  msg_cc_badfmt, msg_cc_badcpf, msg_cc_badacc, msg_cc_badname
+        .globl  msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf
+        .globl  msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
+        # R3 – transações
+        .globl  trans_deb_vals, trans_cred_vals
+        .globl  trans_deb_head, trans_deb_count, trans_deb_wptr
+        .globl  trans_cred_head, trans_cred_count, trans_cred_wptr
+        # comandos de dump
+        .globl  str_cmd_dumpcred, str_cmd_dumpdeb
+        # buffers temporários
+        .globl  cc_buf_cpf, cc_buf_acc, cc_buf_nome
+        # R4 – data/hora
+        .globl  curr_day, curr_mon, curr_year, curr_hour, curr_min, curr_sec
+        .globl  ms_last, ms_accum, month_days_norm
+        .globl  str_cmd_time_set, str_cmd_time_show, msg_time_set_ok, msg_time_badfmt, msg_time_range
+        # buffer usado por formatar_real / formatar_centavos
+        .globl  buffer_valor_formatado
 
 # ---- Constantes ----
 MAX_CLIENTS:        .word 50
@@ -34,11 +36,11 @@ CPF_STR_LEN:        .word 11
 ACC_NUM_LEN:        .word 6
 ACC_DV_LEN:         .word 1
 LIMITE_PADRAO_CENT: .word 150000       # R$ 1500,00
-TRANS_MAX:          .word 50
+TRANS_MAX:          .word 50           # capacidade do ring buffer por cliente
 
 # ---- Buffers gerais (terminal) ----
-inp_buf:    .space 256
-buffer_valor_formatado: .space 32    # "R$ 1.234.567,89" cabe tranquilo
+inp_buf:                    .space 256
+buffer_valor_formatado:     .space 32    # "R$ 1.234.567,89" cabe tranquilo
 
 # ---- Banner / textos do shell ----
 bank_name:  .asciiz "opcode"
@@ -47,7 +49,7 @@ help_txt:   .asciiz "Comandos:\n- help\n- exit\n- conta_cadastrar-<CPF>-<CONTA6>
 msg_invalid:.asciiz "Comando invalido\n"
 msg_bye:    .asciiz "Encerrando...\n"
 
-# literais para comparaÃ§Ã£o direta no main
+# literais para comparação direta no main
 str_help:   .asciiz "help"
 str_exit:   .asciiz "exit"
 
@@ -58,14 +60,14 @@ str_cmd_pay_credito:   .asciiz "pagar_credito-"
 str_cmd_alt_limite:    .asciiz "alterar_limite-"
 
 # ---- Mensagens gerais ----
-msg_cc_ok:          .asciiz "Cliente cadastrado com sucesso. Numero da conta "
-msg_cc_cpf_exists:  .asciiz "Ja existe conta neste CPF\n"
-msg_cc_acc_exists:  .asciiz "Numero da conta ja em uso\n"
-msg_cc_full:        .asciiz "Falha: base de clientes cheia\n"
-msg_cc_badfmt:      .asciiz "Falha: formato do comando invalido\n"
-msg_cc_badcpf:      .asciiz "Falha: CPF invalido (11 digitos)\n"
-msg_cc_badacc:      .asciiz "Falha: numero da conta invalido (6 digitos)\n"
-msg_cc_badname:     .asciiz "Falha: nome vazio ou maior que 32\n"
+msg_cc_ok:              .asciiz "Cliente cadastrado com sucesso. Numero da conta "
+msg_cc_cpf_exists:      .asciiz "Ja existe conta neste CPF\n"
+msg_cc_acc_exists:      .asciiz "Numero da conta ja em uso\n"
+msg_cc_full:            .asciiz "Falha: base de clientes cheia\n"
+msg_cc_badfmt:          .asciiz "Falha: formato do comando invalido\n"
+msg_cc_badcpf:          .asciiz "Falha: CPF invalido (11 digitos)\n"
+msg_cc_badacc:          .asciiz "Falha: numero da conta invalido (6 digitos)\n"
+msg_cc_badname:         .asciiz "Falha: nome vazio ou maior que 32\n"
 
 msg_pay_deb_ok:         .asciiz "Pagamento em debito registrado\n"
 msg_pay_cred_ok:        .asciiz "Pagamento em credito registrado\n"
@@ -78,60 +80,59 @@ msg_limite_baixo_divida:.asciiz "Novo limite menor que a divida atual\n"
 # ==========================
 #   Estruturas dos clientes
 # ==========================
-clientes_usado:        .space 50        # 50 * 1
-clientes_cpf:          .space 600       # 50 * 12
-clientes_conta:        .space 350       # 50 * 7
+clientes_usado:        .space 50        # 50 * 1 (bytes 0/1)
+clientes_cpf:          .space 600       # 50 * 12 (11 + '\0')
+clientes_conta:        .space 350       # 50 * 7  (6 + '\0')
 clientes_dv:           .space 50
-clientes_nome:         .space 1650      # 50 * 33
+clientes_nome:         .space 1650      # 50 * 33 (32 + '\0')
 
 # words alinhados
-.align 2
-clientes_saldo_cent:
-    .word 0:50
+        .align 2
+clientes_saldo_cent:       .word 0:50
 
-.align 2
-clientes_limite_cent:
-    .word 0:50
+        .align 2
+clientes_limite_cent:      .word 0:50
 
-.align 2
-clientes_devido_cent:
-    .word 0:50
+        .align 2
+clientes_devido_cent:      .word 0:50
 
 # ==========================
-#   R3 â€“ buffers de transaÃ§Ãµes (por cliente)
+#   R3 – buffers de transações (por cliente)
 # ==========================
-.align 2
-trans_deb_head:   .space 200            # 50 * 4
-.align 2
-trans_deb_count:  .space 200
-.align 2
-trans_deb_wptr:   .space 200
+# head/count/wptr como WORDs (inicializados em 0)
+        .align 2
+trans_deb_head:            .word 0:50
+        .align 2
+trans_deb_count:           .word 0:50
+        .align 2
+trans_deb_wptr:            .word 0:50
 
-.align 2
-trans_cred_head:  .space 200
-.align 2
-trans_cred_count: .space 200
-.align 2
-trans_cred_wptr:  .space 200
+        .align 2
+trans_cred_head:           .word 0:50
+        .align 2
+trans_cred_count:          .word 0:50
+        .align 2
+trans_cred_wptr:           .word 0:50
 
-.align 2
-trans_deb_vals:   .space 10000          # 50 * 50 * 4
-.align 2
-trans_cred_vals:  .space 10000
+# valores das transações (centavos) — 50 clientes * 50 slots = 2500 words
+        .align 2
+trans_deb_vals:            .word 0:2500
+        .align 2
+trans_cred_vals:           .word 0:2500
 
 # comandos de dump
-str_cmd_dumpcred: .asciiz "dump_trans-cred-"
-str_cmd_dumpdeb:  .asciiz "dump_trans-deb-"
+str_cmd_dumpcred:  .asciiz "dump_trans-cred-"
+str_cmd_dumpdeb:   .asciiz "dump_trans-deb-"
 
-# buffers temporÃ¡rios
+# buffers temporários
 cc_buf_cpf:   .space 12   # 11 + '\0'
 cc_buf_acc:   .space 7    # 6 + '\0'
 cc_buf_nome:  .space 33   # 32 + '\0'
 
 # ==========================
-#   R4 â€“ Data/Hora
+#   R4 – Data/Hora
 # ==========================
-.align 2
+        .align 2
 curr_day:   .word 1
 curr_mon:   .word 1
 curr_year:  .word 2025
@@ -139,12 +140,12 @@ curr_hour:  .word 0
 curr_min:   .word 0
 curr_sec:   .word 0
 
-.align 2
+        .align 2
 ms_last:    .word 0
 ms_accum:   .word 0
 
 month_days_norm:
-    .word 31,28,31,30,31,30,31,31,30,31,30,31
+        .word 31,28,31,30,31,30,31,31,30,31,30,31
 
 str_cmd_time_set:  .asciiz "datetime_set-"
 str_cmd_time_show: .asciiz "datetime_show"

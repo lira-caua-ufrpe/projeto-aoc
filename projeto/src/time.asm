@@ -1,16 +1,18 @@
-# time.asm ï¿½ R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
+# time.asm — R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
 
 ############################
-# Configuraï¿½ï¿½o anti-turbo  #
+# Configuração anti-turbo  #
 ############################
-.data
-MS_PER_SEC:       .word 1000      # 1s lï¿½gico = 1000 ms
-DELTA_CAP_SEC:    .word 5         # no mï¿½x. 5s por chamada (evita saltos)
+        .data
+MS_PER_SEC:       .word 1000      # 1s lógico = 1000 ms
+DELTA_CAP_SEC:    .word 5         # no máx. 5s por chamada (evita saltos)
 
-.text
-.globl tick_datetime
-.globl handle_datetime_set
-.globl handle_datetime_show
+        .text
+        .globl tick_datetime
+        .globl handle_datetime_set
+        .globl handle_datetime_show
+        .globl print_datetime
+
 
 # ------------------------------------------------------------
 # tick_datetime()
@@ -34,9 +36,9 @@ tick_datetime:
 
     la  $t1,ms_last
     lw  $t2,0($t1)           # last_ms
-    beq $t2,$zero, TD_INIT   # primeira chamada apï¿½s reset/set
+    beq $t2,$zero, TD_INIT   # primeira chamada após reset/set
 
-    # delta = now - last ; se wrap (now<last) sï¿½ atualiza last
+    # delta = now - last ; se wrap (now<last) só atualiza last
     subu $t3,$t0,$t2         # delta_ms
     sltu $t4,$t0,$t2
     bne  $t4,$zero, TD_SAVE_ONLY
@@ -100,12 +102,13 @@ TD_ADD_ONE_SEC:
     lw  $t8,0($s7)
     addiu $t8,$t8,1
 
-    # dias do mï¿½s
+    # dias do mês
     la  $a0,curr_mon
     lw  $a0,0($a0)
     la  $a1,curr_year
     lw  $a1,0($a1)
     jal days_in_month
+    nop
     move $t9,$v0
 
     slt  $a1,$t8,$t9
@@ -161,6 +164,7 @@ TD_END:
     lw $ra,40($sp)
     addiu $sp,$sp,44
     jr  $ra
+    nop
 
 # ------------------------------------------------------------
 # days_in_month(a0=mes 1..12, a1=ano) -> v0=dias
@@ -191,9 +195,11 @@ days_in_month:
 DIM_FEB_29:
     li $v0,29
     jr $ra
+    nop
 DIM_FEB_28:
     li $v0,28
     jr $ra
+    nop
 
 DIM_NOT_FEB:
     la  $t0,month_days_norm
@@ -202,6 +208,7 @@ DIM_NOT_FEB:
     addu $t0,$t0,$a0
     lw  $v0,0($t0)
     jr  $ra
+    nop
 
 # ------------------------------------------------------------
 # handle_datetime_set(a0=inp_buf) -> v0=1/0
@@ -231,6 +238,7 @@ HDS_PREF:
 
 HDS_PREF_OK:
     jal read_2digits
+    nop
     move $s0,$v0
     lb   $t2,0($t0)
     li   $t3,'/'
@@ -238,6 +246,7 @@ HDS_PREF_OK:
     addiu $t0,$t0,1
 
     jal read_2digits
+    nop
     move $s1,$v0
     lb   $t2,0($t0)
     li   $t3,'/'
@@ -245,6 +254,7 @@ HDS_PREF_OK:
     addiu $t0,$t0,1
 
     jal read_4digits
+    nop
     move $s2,$v0
 
     lb $t2,0($t0)
@@ -258,6 +268,7 @@ HDS_PREF_OK:
 
 HDS_HH:
     jal read_2digits
+    nop
     move $s3,$v0
     lb   $t2,0($t0)
     li   $t3,':'
@@ -265,6 +276,7 @@ HDS_HH:
     addiu $t0,$t0,1
 
     jal read_2digits
+    nop
     move $s4,$v0
     lb   $t2,0($t0)
     li   $t3,':'
@@ -272,9 +284,10 @@ HDS_HH:
     addiu $t0,$t0,1
 
     jal read_2digits
+    nop
     move $s5,$v0
 
-    # validaï¿½ï¿½es
+    # validações
     blez $s0,HDS_RANGE
     blez $s1,HDS_RANGE
     blez $s2,HDS_RANGE
@@ -289,6 +302,7 @@ HDS_HH:
     move $a0,$s1
     move $a1,$s2
     jal  days_in_month
+    nop
     move $t2,$v0
     bgt  $s0,$t2,HDS_RANGE
 
@@ -349,6 +363,7 @@ HDS_END:
     lw $ra,36($sp)
     addiu $sp,$sp,40
     jr $ra
+    nop
 
 # ------------------------------------------------------------
 # handle_datetime_show(a0=inp_buf) -> v0=1/0
@@ -371,7 +386,9 @@ HDSH_PREF:
     j    HDSH_PREF
 HDSH_GO:
     jal  tick_datetime
+    nop
     jal  print_datetime
+    nop
     li   $v0,1
     j    HDSH_END
 HDSH_NOT:
@@ -381,7 +398,8 @@ HDSH_END:
     lw $s0,8($sp)
     lw $ra,12($sp)
     addiu $sp,$sp,16
-    jr $ra
+    jr  $ra
+    nop
 
 # ------------------------------------------------------------
 # print_datetime(), print_two(), print_four(), read_2digits(), read_4digits()
@@ -394,6 +412,7 @@ print_datetime:
     la  $t0,curr_day
     lw  $a0,0($t0)
     jal print_two
+    nop
     li  $v0,11
     li  $a0,'/'
     syscall
@@ -401,6 +420,7 @@ print_datetime:
     la  $t0,curr_mon
     lw  $a0,0($t0)
     jal print_two
+    nop
     li  $v0,11
     li  $a0,'/'
     syscall
@@ -408,6 +428,7 @@ print_datetime:
     la  $t0,curr_year
     lw  $a0,0($t0)
     jal print_four
+    nop
     li  $v0,11
     li  $a0,' '
     syscall
@@ -421,6 +442,7 @@ print_datetime:
     la  $t0,curr_hour
     lw  $a0,0($t0)
     jal print_two
+    nop
     li  $v0,11
     li  $a0,':'
     syscall
@@ -428,6 +450,7 @@ print_datetime:
     la  $t0,curr_min
     lw  $a0,0($t0)
     jal print_two
+    nop
     li  $v0,11
     li  $a0,':'
     syscall
@@ -435,6 +458,7 @@ print_datetime:
     la  $t0,curr_sec
     lw  $a0,0($t0)
     jal print_two
+    nop
     li  $v0,11
     li  $a0,10
     syscall
@@ -443,6 +467,7 @@ print_datetime:
     lw    $ra,4($sp)
     addiu $sp,$sp,8
     jr  $ra
+    nop
 
 print_two:
     li  $t0,10
@@ -456,6 +481,7 @@ print_two:
     addiu $a0,$t2,48
     syscall
     jr  $ra
+    nop
 
 print_four:
     li  $t0,1000
@@ -485,6 +511,7 @@ print_four:
     addiu $a0,$t2,48
     syscall
     jr  $ra
+    nop
 
 read_2digits:
     lb  $t1,0($t0)
@@ -500,9 +527,11 @@ read_2digits:
     mul $v0,$t1,10
     addu $v0,$v0,$t2
     jr  $ra
+    nop
 R2D_BAD:
     li $v0,-1
     jr $ra
+    nop
 
 read_4digits:
     move $v0,$zero
@@ -518,6 +547,8 @@ R4D_L:
     addiu $t3,$t3,-1
     bgtz $t3,R4D_L
     jr  $ra
+    nop
 R4D_BAD:
     li $v0,-1
     jr $ra
+    nop
