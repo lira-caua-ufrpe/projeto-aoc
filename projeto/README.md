@@ -113,3 +113,110 @@ alterar_limite-123456-X-500000
 - **R1**: cadastro de clientes.
 
 
+## Funcionalidade: Comando `pagar_fatura`
+
+### Comando:
+
+```
+
+pagar_fatura-<CONTA6>-<DV>-<VALORcentavos>-<METHOD>
+```
+
+*   **<CONTA6>**: Número da conta do cliente (6 dígitos).
+*   **<DV>**: Dígito verificador da conta (1 dígito).
+*   **<VALORcentavos>**: Valor a ser pago em centavos.
+*   **<METHOD>**: Método de pagamento:
+    *   **S**: Pagamento via **saldo de conta**.
+    *   **E**: Pagamento **externo**.
+
+### Regras:
+
+1.  Se o valor fornecido for **maior que a dívida** do cartão de crédito, a operação será rejeitada com a mensagem:
+    
+    ```
+    Falha: valor fornecido maior que a dívida do cartão
+    ```
+    
+2.  Se o **método de pagamento** for `S` (saldo de conta), o pagamento será feito **do saldo da conta corrente**. Se o saldo for insuficiente, será exibida a mensagem:
+    
+    ```
+    Falha: saldo insuficiente
+    ```
+    
+3.  Se o **método de pagamento** for `E` (externo), o pagamento será **feito externamente**, sem afetar o saldo da conta corrente.
+4.  Após o pagamento, o valor será **abatido da dívida** do cartão e, no caso do pagamento via saldo de conta, também será **abatido do saldo** da conta corrente.
+5.  Caso o cliente não exista, será exibida a mensagem:
+    
+    ```
+    Falha: cliente inexistente
+    ```
+    
+6.  Caso o comando esteja em formato **inválido**, será exibida a mensagem:
+    
+    ```
+    Falha: formato do comando inválido
+    ```
+    
+
+### Exemplo de Comandos:
+
+#### Cadastro de Conta:
+
+```
+
+conta_cadastrar-12345678901-123456-Ana Maria
+```
+
+Isso registra uma conta de **Ana Maria** com **CPF \`12345678901\`** e **conta \`123456\`**.
+
+#### Transação de Crédito (Compra no Cartão de Crédito):
+
+```
+
+pagar_credito-123456-0-5000
+```
+
+Isso registra um **crédito de R$ 50,00 (5000 centavos)** no cartão de **\`123456-0\`**.
+
+#### Pagamento da Fatura:
+
+```
+
+pagar_fatura-123456-0-5000-S
+```
+
+Isso tenta pagar a fatura do **cartão \`123456-0\`** com **R$ 50,00 (5000 centavos)** utilizando o **saldo da conta corrente**. Se o saldo for insuficiente, será exibida a mensagem de erro **"Falha: saldo insuficiente"**.
+
+### Exemplo de Mensagens:
+
+*   **Sucesso no pagamento** via saldo de conta:
+    
+    ```
+    
+        Pagamento realizado com sucesso!
+        
+    ```
+    
+*   **Erro de saldo insuficiente**:
+    
+    ```
+    
+        Falha: saldo insuficiente
+        
+    ```
+    
+*   **Erro de cliente inexistente**:
+    
+    ```
+    
+        Falha: cliente inexistente
+        
+    ```
+    
+*   **Erro de valor fornecido maior que a dívida do cartão**:
+    
+    ```
+    
+        Falha: valor fornecido maior que a dívida do cartão
+        
+    ```
