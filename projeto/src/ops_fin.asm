@@ -106,6 +106,11 @@ pd_val_loop:
     addi  $t0, $t0, 1
     j     pd_val_loop
 pd_val_end:
+    # normaliza valor para múltiplo de 100
+    li    $t0, 100
+    divu  $t8, $t0
+    mflo  $t1
+    mul   $t8, $t1, 100
 
     # procura cliente por conta+DV
     lw    $t9, MAX_CLIENTS
@@ -155,12 +160,10 @@ pd_cmp6:
     sw    $t3, 0($t2)
 
     # ---- R3: registra débito ----
-    # headAddr = trans_deb_head + 4*i
     la    $t4, trans_deb_head
     addu  $t4, $t4, $t0       # t0 = i*4
     lw    $t5, 0($t4)         # head (0..49)
 
-    # slotOffset = 4*(i*50 + head)
     move  $a0, $t1            # i
     move  $a1, $t5            # head
     jal   calc_off_i50k
@@ -177,6 +180,12 @@ pd_cmp6:
     move  $t5, $zero
 pd_head_ok:
     sw    $t5, 0($t4)
+       # registrar também no extrato detalhado (débito)
+    move  $a0, $t1          # índice do cliente (i)
+    li    $a1, 0            # 0 = débito
+    la    $a2, cc_buf_acc   # conta que veio do comando
+    move  $a3, $t8          # valor em centavos
+    jal   adicionar_transacao_detalhe
 
     # ok
     li    $v0, 4
@@ -222,29 +231,29 @@ pd_done:
     jr    $ra
 
 # ------------------------------------------------------------
-# pagar_credito
+# pagar_credito (versão limpa)
 # ------------------------------------------------------------
 handle_pagar_credito:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)
-    sw    $s1, 20($sp)
-    sw    $s2, 16($sp)
+    sw    $s0, 24($sp)    # índice do cliente
+    sw    $s1, 20($sp)    # DV
+    sw    $s2, 16($sp)    # (livre)
 
     # prefixo "pagar_credito-"
     move  $t0, $a0
     la    $t1, str_cmd_pay_credito
-pc_chk_pref_loop:
+pc_pref_loop:
     lb    $t2, 0($t1)
     beq   $t2, $zero, pc_pref_ok
     lb    $t3, 0($t0)
     bne   $t2, $t3, pc_not_mine
     addi  $t1, $t1, 1
     addi  $t0, $t0, 1
-    j     pc_chk_pref_loop
+    j     pc_pref_loop
 
 pc_pref_ok:
-    # conta(6)
+    # conta (6 dígitos)
     la    $t4, cc_buf_acc
     li    $t5, 0
 pc_acc_loop:
@@ -267,18 +276,19 @@ pc_acc_loop:
     # DV
     lb    $s1, 0($t0)
     addi  $t0, $t0, 1
-    li    $t7, 88
+    li    $t7, 88           # 'X'
     beq   $s1, $t7, pc_dv_ok
     blt   $s1, 48, pc_badfmt
     bgt   $s1, 57, pc_badfmt
 pc_dv_ok:
+
     # '-'
     lb    $t6, 0($t0)
     li    $t7, 45
     bne   $t6, $t7, pc_badfmt
     addi  $t0, $t0, 1
 
-    # valor -> t8
+    # valor -> $t8
     move  $t8, $zero
 pc_val_loop:
     lb    $t6, 0($t0)
@@ -291,78 +301,108 @@ pc_val_loop:
     addi  $t0, $t0, 1
     j     pc_val_loop
 pc_val_end:
+    # zera centavos lixo
+    li    $t0, 100
+    divu  $t8, $t0
+    mflo  $t1
+    mul   $t8, $t1, 100       # agora $t8 é 20000, 50000, etc.
 
-    # procura cliente
+    # ===== procurar cliente =====
     lw    $t9, MAX_CLIENTS
-    move  $t1, $zero
+    li    $s0, 0              # s0 = índice
 pc_find_loop:
-    beq   $t1, $t9, pc_not_found
+    beq   $s0, $t9, pc_not_found
+
     # usado?
-    la    $a0, clientes_usado
-    addu  $a0, $a0, $t1
-    lb    $a1, 0($a0)
-    beq   $a1, $zero, pc_next_i
+    la    $t2, clientes_usado
+    addu  $t2, $t2, $s0
+    lb    $t3, 0($t2)
+    beq   $t3, $zero, pc_next_i
 
-    # conta(6)
-    la    $a2, clientes_conta
-    li    $a3, 7
-    mul   $a3, $t1, $a3
-    addu  $a2, $a2, $a3
-    la    $a3, cc_buf_acc
-    li    $v1, 0
+    # compara conta(6)
+    la    $t4, clientes_conta
+    li    $t5, 7
+    mul   $t5, $s0, $t5       # s0 * 7
+    addu  $t4, $t4, $t5       # &clientes_conta[s0]
+    la    $t6, cc_buf_acc
+    li    $t7, 0
 pc_cmp6:
-    lb    $t2, 0($a2)
-    lb    $t3, 0($a3)
+    lb    $t2, 0($t4)
+    lb    $t3, 0($t6)
     bne   $t2, $t3, pc_next_i
-    addi  $a2, $a2, 1
-    addi  $a3, $a3, 1
-    addi  $v1, $v1, 1
-    blt   $v1, 6, pc_cmp6
+    addi  $t4, $t4, 1
+    addi  $t6, $t6, 1
+    addi  $t7, $t7, 1
+    blt   $t7, 6, pc_cmp6
 
-    # dv
-    la    $a2, clientes_dv
-    addu  $a2, $a2, $t1
-    lb    $t2, 0($a2)
+    # compara DV
+    la    $t4, clientes_dv
+    addu  $t4, $t4, $s0
+    lb    $t2, 0($t4)
     bne   $t2, $s1, pc_next_i
 
-    # --- ENCONTROU i ---
-    # verifica limite disponível: (limite - devido) >= valor ?
-    sll   $t0, $t1, 2
-    la    $t2, clientes_limite_cent
+    # ======= ACHOU CLIENTE EM s0 =======
+    # base word do cliente = s0 * 4
+    sll   $t0, $s0, 2
+
+    # limite
+    la    $t1, clientes_limite_cent
+    addu  $t1, $t1, $t0
+    lw    $t2, 0($t1)           # t2 = limite
+
+    # devido
     la    $t3, clientes_devido_cent
-    addu  $t2, $t2, $t0
     addu  $t3, $t3, $t0
-    lw    $t4, 0($t2)          # limite
-    lw    $t5, 0($t3)          # devido
-    subu  $t6, $t4, $t5        # disponivel
-    sltu  $v1, $t6, $t8
-    bne   $v1, $zero, pc_lim_insuf
+    lw    $t4, 0($t3)           # t4 = devido (pode estar 56, 48 ...)
+    # normaliza dívida que já estava na memória
+    li    $t5, 100
+    divu  $t4, $t5
+    mflo  $t6
+    mul   $t4, $t6, 100         # agora t4 é múltiplo de 100
 
-    # devido += valor
-    addu  $t5, $t5, $t8
-    sw    $t5, 0($t3)
+    # checa limite: (limite - devido) >= valor ?
+    subu  $t6, $t2, $t4
+    sltu  $t7, $t6, $t8
+    bne   $t7, $zero, pc_lim_insuf
 
-    # ---- R3: registra crédito ----
-    la    $t4, trans_cred_head
-    addu  $t4, $t4, $t0        # t0 = i*4
-    lw    $t5, 0($t4)          # head (0..49)
+    # atualiza devido: devido += valor
+    addu  $t4, $t4, $t8
+    sw    $t4, 0($t3)
 
-    move  $a0, $t1             # i
-    move  $a1, $t5             # head
-    jal   calc_off_i50k
-    move  $t6, $v0
+    # ===== registrar transação de crédito =====
+    # base de 200 bytes: 50 * 4
+    li    $t0, 200
+    mul   $t1, $s0, $t0        # t1 = s0 * 200
+    la    $t2, trans_cred_vals
+    addu  $t2, $t2, $t1        # t2 = base do bloco do cliente
 
-    la    $t7, trans_cred_vals
-    addu  $t7, $t7, $t6
-    sw    $t8, 0($t7)
+    # head desse cliente
+    la    $t3, trans_cred_head
+    sll   $t4, $s0, 2
+    addu  $t3, $t3, $t4
+    lw    $t5, 0($t3)          # t5 = head (0..49)
 
-    addiu $t5, $t5, 1
+    # endereço do slot
+    sll   $t6, $t5, 2          # head * 4
+    addu  $t6, $t2, $t6
+    sw    $t8, 0($t6)          # grava valor da transação
+
+    # atualiza head
+    addi  $t5, $t5, 1
     li    $t6, 50
     bne   $t5, $t6, pc_head_ok
     move  $t5, $zero
 pc_head_ok:
-    sw    $t5, 0($t4)
+    sw    $t5, 0($t3)
+    
+        # registrar também no extrato detalhado (crédito)
+    move  $a0, $s0          # índice do cliente
+    li    $a1, 1            # 1 = crédito
+    la    $a2, cc_buf_acc   # conta do comando
+    move  $a3, $t8          # valor em centavos
+    jal   adicionar_transacao_detalhe
 
+    # mensagem ok
     li    $v0, 4
     la    $a0, msg_pay_cred_ok
     syscall
@@ -370,7 +410,7 @@ pc_head_ok:
     j     pc_done
 
 pc_next_i:
-    addiu $t1, $t1, 1
+    addi  $s0, $s0, 1
     j     pc_find_loop
 
 pc_not_found:
@@ -404,6 +444,7 @@ pc_done:
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
     jr    $ra
+
 
 # ------------------------------------------------------------
 # alterar_limite
@@ -561,9 +602,6 @@ al_done:
 
 ################################################################
 # DEBUG R3: Dump de transações (CRÉDITO / DÉBITO)
-# Comandos:
-#   dump_trans-cred-XXXXXX-DV
-#   dump_trans-deb- XXXXXX-DV
 ################################################################
 
 .data
@@ -576,7 +614,6 @@ dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)\n"
 # handle_dump_trans_credito(a0=inp_buf) -> v0=1 tratou, 0 nao
 # --------------------------------------------------------------
 handle_dump_trans_credito:
-    # prólogo
     addiu $sp, $sp, -40
     sw    $ra, 36($sp)
     sw    $s0, 32($sp)
@@ -584,7 +621,6 @@ handle_dump_trans_credito:
     sw    $s2, 24($sp)
     sw    $s3, 20($sp)
 
-    # prefixo "dump_trans-cred-"
     move  $t0, $a0
     la    $t1, str_cmd_dumpcred
 dtc_pref:
@@ -596,7 +632,6 @@ dtc_pref:
     addi  $t1, $t1, 1
     j     dtc_pref
 dtc_pref_ok:
-    # conta (6 digitos)
     la    $t4, cc_buf_acc
     li    $t5, 0
 dtc_acc:
@@ -609,23 +644,21 @@ dtc_acc:
     addi  $t5, $t5, 1
     blt   $t5, 6,   dtc_acc
     sb    $zero, 0($t4)
-    lb    $t6, 0($t0)          # '-'
+    lb    $t6, 0($t0)
     li    $t7, 45
     bne   $t6, $t7, dtc_badfmt
     addi  $t0, $t0, 1
 
-    # DV
     lb    $s1, 0($t0)
     addi  $t0, $t0, 1
-    li    $t7, 88              # 'X'
+    li    $t7, 88
     beq   $s1, $t7, dtc_dv_ok
     blt   $s1, 48, dtc_badfmt
     bgt   $s1, 57, dtc_badfmt
 dtc_dv_ok:
 
-    # === localizar cliente por conta+DV ===
     lw    $t9, MAX_CLIENTS
-    move  $s0, $zero           # i = 0
+    move  $s0, $zero
 dtc_find:
     beq   $s0, $t9, dtc_not_found
 
@@ -634,7 +667,7 @@ dtc_find:
     lb    $a1, 0($a0)
     beq   $a1, $zero, dtc_next
 
-    la    $a2, clientes_conta   # &conta[i]
+    la    $a2, clientes_conta
     li    $a3, 7
     mul   $a3, $s0, $a3
     addu  $a2, $a2, $a3
@@ -654,41 +687,37 @@ dtc_cmp6:
     lb    $t2, 0($a2)
     bne   $t2, $s1, dtc_next
 
-    # === achou: despejar 50 posicoes do anel ===
     li    $v0, 4
     la    $a0, dump_hdr_cred
     syscall
 
-    # base do bloco de 200 bytes (50 * 4) do cliente i
     la    $s2, trans_cred_vals
     li    $t0, 200
     mul   $t1, $s0, $t0
-    addu  $s2, $s2, $t1         # s2 = base bloco cliente
+    addu  $s2, $s2, $t1
 
-    # wptr = trans_cred_wptr[i] (proxima posicao a escrever)
     la    $t2, trans_cred_wptr
     sll   $t3, $s0, 2
     addu  $t2, $t2, $t3
-    lw    $s3, 0($t2)           # s3 = wptr (0..49)
+    lw    $s3, 0($t2)
 
-    # loop 0..49: idx = (wptr + k) % 50
-    li    $t4, 0                # k
+    li    $t4, 0
 dtc_loop:
     li    $t5, 50
     beq   $t4, $t5, dtc_done
 
-    addu  $t6, $s3, $t4         # wptr + k
+    addu  $t6, $s3, $t4
     sltiu $t7, $t6, 50
     bne   $t7, $zero, dtc_idx_ok
     addi  $t6, $t6, -50
 dtc_idx_ok:
-    sll   $t6, $t6, 2           # *4
+    sll   $t6, $t6, 2
     addu  $t8, $s2, $t6
     lw    $a0, 0($t8)
 
-    li    $v0, 1                # print_int
+    li    $v0, 1
     syscall
-    li    $v0, 11               # '\n'
+    li    $v0, 11
     li    $a0, 10
     syscall
 
@@ -729,12 +758,10 @@ dtc_epilogue:
     addiu $sp, $sp, 40
     jr    $ra
 
-
 # --------------------------------------------------------------
 # handle_dump_trans_debito(a0=inp_buf) -> v0=1 tratou, 0 nao
 # --------------------------------------------------------------
 handle_dump_trans_debito:
-    # prólogo
     addiu $sp, $sp, -40
     sw    $ra, 36($sp)
     sw    $s0, 32($sp)
@@ -742,7 +769,6 @@ handle_dump_trans_debito:
     sw    $s2, 24($sp)
     sw    $s3, 20($sp)
 
-    # prefixo "dump_trans-deb-"
     move  $t0, $a0
     la    $t1, str_cmd_dumpdeb
 dtd_pref:
@@ -754,7 +780,6 @@ dtd_pref:
     addi  $t1, $t1, 1
     j     dtd_pref
 dtd_pref_ok:
-    # conta (6)
     la    $t4, cc_buf_acc
     li    $t5, 0
 dtd_acc:
@@ -767,12 +792,11 @@ dtd_acc:
     addi  $t5, $t5, 1
     blt   $t5, 6,   dtd_acc
     sb    $zero, 0($t4)
-    lb    $t6, 0($t0)          # '-'
+    lb    $t6, 0($t0)
     li    $t7, 45
     bne   $t6, $t7, dtd_badfmt
     addi  $t0, $t0, 1
 
-    # DV
     lb    $s1, 0($t0)
     addi  $t0, $t0, 1
     li    $t7, 88
@@ -781,7 +805,6 @@ dtd_acc:
     bgt   $s1, 57, dtd_badfmt
 dtd_dv_ok:
 
-    # localizar cliente
     lw    $t9, MAX_CLIENTS
     move  $s0, $zero
 dtd_find:
@@ -812,7 +835,6 @@ dtd_cmp6:
     lb    $t2, 0($a2)
     bne   $t2, $s1, dtd_next
 
-    # dump
     li    $v0, 4
     la    $a0, dump_hdr_deb
     syscall
@@ -825,7 +847,7 @@ dtd_cmp6:
     la    $t2, trans_deb_wptr
     sll   $t3, $s0, 2
     addu  $t2, $t2, $t3
-    lw    $s3, 0($t2)           # wptr
+    lw    $s3, 0($t2)
 
     li    $t4, 0
 dtd_loop:
@@ -885,7 +907,7 @@ dtd_epilogue:
     jr    $ra
 
 # --------------------------------------------------------------
-# Aliases (nomes esperados pelo main.asm)
+# Aliases
 # --------------------------------------------------------------
 handle_dump_trans_cred:
     j handle_dump_trans_credito

@@ -307,3 +307,97 @@ cc_epilogue:
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
     jr    $ra
+
+# ============================================================
+# buscar_cliente_por_conta_completa
+# a0 = endereço da string "XXXXXX-D"
+# v0 = índice do cliente (0..49) ou -1 se não achar
+# ============================================================
+.globl buscar_cliente_por_conta_completa
+buscar_cliente_por_conta_completa:
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)   # i
+    sw    $s1, 20($sp)   # ptr conta[i]
+    sw    $s2, 16($sp)   # ptr buffer
+    sw    $s3, 12($sp)   # dv cliente
+    sw    $s4, 8($sp)    # used
+
+    move  $s2, $a0               # buffer "123456-0"
+
+    # max = MAX_CLIENTS
+    la    $t0, MAX_CLIENTS
+    lw    $t0, 0($t0)            # t0 = 50
+    li    $s0, 0                 # i = 0
+
+bccc_loop_i:
+    beq   $s0, $t0, bccc_not_found  # acabou
+
+    # usado?
+    la    $t1, clientes_usado
+    addu  $t1, $t1, $s0
+    lb    $s4, 0($t1)
+    beq   $s4, $zero, bccc_next_i   # não usado, pula
+
+    # ptr conta[i] = clientes_conta + i*7
+    la    $s1, clientes_conta
+    li    $t2, 7
+    mul   $t3, $s0, $t2
+    addu  $s1, $s1, $t3
+
+    # compara 6 dígitos
+    li    $t4, 0                  # k = 0
+bccc_cmp6:
+    li    $t5, 6
+    beq   $t4, $t5, bccc_cmp_dash
+    lb    $t6, 0($s1)
+    lb    $t7, 0($s2)
+    bne   $t6, $t7, bccc_next_i
+    addiu $s1, $s1, 1
+    addiu $s2, $s2, 1
+    addiu $t4, $t4, 1
+    j     bccc_cmp6
+
+bccc_cmp_dash:
+    # buffer está agora no '-', garante que é '-'
+    lb    $t6, 0($s2)
+    li    $t7, 45           # '-'
+    bne   $t6, $t7, bccc_next_reset
+    # avança pro DV do buffer
+    addiu $s2, $s2, 1
+
+    # DV do cliente
+    la    $t8, clientes_dv
+    addu  $t8, $t8, $s0
+    lb    $s3, 0($t8)
+
+    # compara DV
+    lb    $t9, 0($s2)       # dv do buffer
+    bne   $s3, $t9, bccc_next_reset
+
+    # achou!
+    move  $v0, $s0
+    j     bccc_end
+
+# precisamos restaurar o ponteiro do buffer antes de ir pro próximo i
+bccc_next_reset:
+    # buffer original = a0
+    move  $s2, $a0
+
+bccc_next_i:
+    addiu $s0, $s0, 1
+    j     bccc_loop_i
+
+bccc_not_found:
+    li    $v0, -1
+
+bccc_end:
+    lw    $s4, 8($sp)
+    lw    $s3, 12($sp)
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra
+

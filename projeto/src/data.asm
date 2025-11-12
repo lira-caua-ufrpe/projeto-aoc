@@ -1,4 +1,4 @@
-# data.asm � dados globais e constantes do projeto (R1..R4)
+# data.asm — dados globais e constantes do projeto (R1..R4)
 
 .data
 # ---- Exportações (usadas em outros arquivos) ----
@@ -10,36 +10,40 @@
 .globl str_cmd_cc_prefix, str_cmd_pay_debito, str_cmd_pay_credito, str_cmd_alt_limite
 .globl msg_cc_ok, msg_cc_cpf_exists, msg_cc_acc_exists, msg_cc_full
 .globl msg_cc_badfmt, msg_cc_badcpf, msg_cc_badacc, msg_cc_badname
-.globl msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf, msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
-# R3 � transa��es (exports usados em ops_fin.asm)
+.globl msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf
+.globl msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
+# R3 – transações
 .globl trans_deb_vals, trans_cred_vals
 .globl trans_deb_head, trans_deb_count, trans_deb_wptr
 .globl trans_cred_head, trans_cred_count, trans_cred_wptr
-# R3 � comandos de dump (se usados)
+# comandos de dump
 .globl str_cmd_dumpcred, str_cmd_dumpdeb
-# buffers tempor�rios do conta_cadastrar
+# buffers temporários
 .globl cc_buf_cpf, cc_buf_acc, cc_buf_nome
-# R4 � data/hora usados por time.asm
+# R4 – data/hora
 .globl curr_day, curr_mon, curr_year, curr_hour, curr_min, curr_sec
 .globl ms_last, ms_accum, month_days_norm
 .globl str_cmd_time_set, str_cmd_time_show, msg_time_set_ok, msg_time_badfmt, msg_time_range
+# buffer usado por formatar_real (transacoes.asm)
+.globl buffer_valor_formatado
 
 # ---- Constantes ----
 MAX_CLIENTS:        .word 50
-NAME_MAX:           .word 32           # +1 p/ '\0'
-CPF_STR_LEN:        .word 11           # "XXXXXXXXXXX"
-ACC_NUM_LEN:        .word 6            # "XXXXXX"
-ACC_DV_LEN:         .word 1            # 1 caractere
-LIMITE_PADRAO_CENT: .word 150000       # R$1500,00
-TRANS_MAX:          .word 50           # m�x trans por cliente (d�bito e cr�dito)
+NAME_MAX:           .word 32
+CPF_STR_LEN:        .word 11
+ACC_NUM_LEN:        .word 6
+ACC_DV_LEN:         .word 1
+LIMITE_PADRAO_CENT: .word 150000       # R$ 1500,00
+TRANS_MAX:          .word 50
 
 # ---- Buffers gerais (terminal) ----
 inp_buf:    .space 256
+buffer_valor_formatado: .space 32    # "R$ 1.234.567,89" cabe tranquilo
 
 # ---- Banner / textos do shell ----
 bank_name:  .asciiz "opcode"
 banner:     .asciiz "opcode-shell>> "
-help_txt:   .asciiz "Comandos:\n- help\n- exit\n- conta_cadastrar-<CPF>-<CONTA6>-<NOME>\n- pagar_debito-<CONTA6>-<DV>-<VALORcent>\n- pagar_credito-<CONTA6>-<DV>-<VALORcent>\n- alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>\n- datetime_set-DD/MM/AAAA- HH:MM:SS\n- datetime_show\n"
+help_txt:   .asciiz "Comandos:\n- help\n- exit\n- conta_cadastrar-<CPF>-<CONTA6>-<NOME>\n- pagar_debito-<CONTA6>-<DV>-<VALORcent>\n- pagar_credito-<CONTA6>-<DV>-<VALORcent>\n- alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>\n- dump_trans-cred-<CONTA6>-<DV>\n- dump_trans-deb-<CONTA6>-<DV>\n- datetime_set-DD/MM/AAAA- HH:MM:SS\n- datetime_show\n- debito_extrato-<CONTA6>-<DV>\n- credito_extrato-<CONTA6>-<DV>\n"
 msg_invalid:.asciiz "Comando invalido\n"
 msg_bye:    .asciiz "Encerrando...\n"
 
@@ -74,60 +78,58 @@ msg_limite_baixo_divida:.asciiz "Novo limite menor que a divida atual\n"
 # ==========================
 #   Estruturas dos clientes
 # ==========================
-# bytes
 clientes_usado:        .space 50        # 50 * 1
 clientes_cpf:          .space 600       # 50 * 12
 clientes_conta:        .space 350       # 50 * 7
-clientes_dv:           .space 50        # 50 * 1
+clientes_dv:           .space 50
 clientes_nome:         .space 1650      # 50 * 33
 
-# words (alinhados)
+# words alinhados
 .align 2
-clientes_saldo_cent:   .space 200       # 50 * 4
+clientes_saldo_cent:
+    .word 0:50
+
 .align 2
-clientes_limite_cent:  .space 200       # 50 * 4
+clientes_limite_cent:
+    .word 0:50
+
 .align 2
-clientes_devido_cent:  .space 200       # 50 * 4
+clientes_devido_cent:
+    .word 0:50
 
 # ==========================
 #   R3 – buffers de transações (por cliente)
-#   - Cada cliente tem 50 slots por tipo (débito e crédito)
-#   - Cada entrada guarda o valor em centavos (word)
-#   - head: pr�ximo slot p/ escrever (circular 0..49)
-#   - count: qtde v�lida (0..50)
-#   - wptr: mantido por compatibilidade (se usado em algum lugar)
 # ==========================
 .align 2
 trans_deb_head:   .space 200            # 50 * 4
 .align 2
-trans_deb_count:  .space 200            # 50 * 4
+trans_deb_count:  .space 200
 .align 2
-trans_deb_wptr:   .space 200            # 50 * 4 (opcional/compat)
+trans_deb_wptr:   .space 200
 
 .align 2
-trans_cred_head:  .space 200            # 50 * 4
+trans_cred_head:  .space 200
 .align 2
-trans_cred_count: .space 200            # 50 * 4
+trans_cred_count: .space 200
 .align 2
-trans_cred_wptr:  .space 200            # 50 * 4 (opcional/compat)
+trans_cred_wptr:  .space 200
 
-# valores (50 clientes * 50 slots * 4 bytes = 10000)
 .align 2
-trans_deb_vals:   .space 10000
+trans_deb_vals:   .space 10000          # 50 * 50 * 4
 .align 2
 trans_cred_vals:  .space 10000
 
-# comandos de dump (opcional)
+# comandos de dump
 str_cmd_dumpcred: .asciiz "dump_trans-cred-"
 str_cmd_dumpdeb:  .asciiz "dump_trans-deb-"
 
-# ---- buffers tempor�rios do handler conta_cadastrar ----
-cc_buf_cpf:   .space 12   # 11 d�gitos + '\0'
-cc_buf_acc:   .space 7    # 6 d�gitos + '\0'
-cc_buf_nome:  .space 33   # at� 32 + '\0'
+# buffers temporários
+cc_buf_cpf:   .space 12   # 11 + '\0'
+cc_buf_acc:   .space 7    # 6 + '\0'
+cc_buf_nome:  .space 33   # 32 + '\0'
 
 # ==========================
-#   R4 � Data/Hora (time.asm)
+#   R4 – Data/Hora
 # ==========================
 .align 2
 curr_day:   .word 1
@@ -141,11 +143,9 @@ curr_sec:   .word 0
 ms_last:    .word 0
 ms_accum:   .word 0
 
-# dias de cada mes (n�o-bissexto)
 month_days_norm:
     .word 31,28,31,30,31,30,31,31,30,31,30,31
 
-# comandos/msgs de time
 str_cmd_time_set:  .asciiz "datetime_set-"
 str_cmd_time_show: .asciiz "datetime_show"
 msg_time_set_ok:   .asciiz "Data/hora configurada\n"
