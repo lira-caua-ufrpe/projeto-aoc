@@ -102,10 +102,22 @@ dispatch_cmds:
     la   $a0, inp_buf
     jal  handle_extrato_credito
     bne  $v0, $zero, main_loop
-
+    
+    # pagar fatura
     la   $a0, inp_buf
     jal  handle_pagar_fatura
     bne  $v0, $zero, main_loop
+    
+    # sacar-<CONTA6>-<DV>-<VALORcent>
+    la   $a0, inp_buf
+    jal  handle_sacar
+    bne  $v0, $zero, main_loop
+
+    # depositar-<CONTA6>-<DV>-<VALORcent>
+    la   $a0, inp_buf
+    jal  handle_depositar
+    bne  $v0, $zero, main_loop
+
     # nada pegou
     la   $a0, msg_invalid
     jal  print_str

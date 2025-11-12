@@ -19,6 +19,8 @@
 .globl handle_dump_trans_cred
 .globl handle_dump_trans_deb
 .globl handle_pagar_fatura
+.globl handle_sacar
+.globl handle_depositar
 
 # ------------------------------------------------------------
 # Util: calcula offset 4 * ( i*50 + k )
@@ -1236,3 +1238,331 @@ pf_epilogue:
     jr    $ra
     nop
 
+# ------------------------------------------------------------
+# R8: sacar-<CONTA6>-<DV>-<VALORcentavos>
+#  - Decrementa saldo da conta corrente (se houver saldo)
+# ------------------------------------------------------------
+handle_sacar:
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)    # indice cliente
+    sw    $s1, 20($sp)    # DV
+    sw    $s2, 16($sp)
+
+    # prefixo "sacar-"
+    move  $t0, $a0
+    la    $t1, str_cmd_sacar
+hs_pref:
+    lb    $t2, 0($t1)
+    beq   $t2, $zero, hs_pref_ok
+    lb    $t3, 0($t0)
+    bne   $t2, $t3, hs_not_mine
+    addiu $t1, $t1, 1
+    addiu $t0, $t0, 1
+    j     hs_pref
+
+hs_pref_ok:
+    # conta (6)
+    la    $t4, cc_buf_acc
+    li    $t5, 0
+hs_acc:
+    lb    $t6, 0($t0)
+    blt   $t6, 48, hs_badfmt
+    bgt   $t6, 57, hs_badfmt
+    sb    $t6, 0($t4)
+    addiu $t4, $t4, 1
+    addiu $t0, $t0, 1
+    addiu $t5, $t5, 1
+    blt   $t5, 6, hs_acc
+    sb    $zero, 0($t4)
+
+    # '-'
+    lb    $t6, 0($t0)
+    li    $t7, 45
+    bne   $t6, $t7, hs_badfmt
+    addiu $t0, $t0, 1
+
+    # DV
+    lb    $s1, 0($t0)
+    addiu $t0, $t0, 1
+    li    $t7, 88           # 'X'
+    beq   $s1, $t7, hs_dv_ok
+    blt   $s1, 48, hs_badfmt
+    bgt   $s1, 57, hs_badfmt
+hs_dv_ok:
+
+    # '-'
+    lb    $t6, 0($t0)
+    li    $t7, 45
+    bne   $t6, $t7, hs_badfmt
+    addiu $t0, $t0, 1
+
+    # VALOR -> t8
+    move  $t8, $zero
+hs_val:
+    lb    $t6, 0($t0)
+    beq   $t6, $zero, hs_val_end
+    blt   $t6, 48, hs_badfmt
+    bgt   $t6, 57, hs_badfmt
+    addiu $t6, $t6, -48
+    mul   $t8, $t8, 10
+    addu  $t8, $t8, $t6
+    addiu $t0, $t0, 1
+    j     hs_val
+hs_val_end:
+    # normaliza centavos (consistente com R2)
+    li    $t0, 100
+    divu  $t8, $t0
+    mflo  $t1
+    mul   $t8, $t1, 100
+
+    # procurar cliente por conta+DV
+    lw    $t9, MAX_CLIENTS
+    li    $s0, 0
+hs_find:
+    beq   $s0, $t9, hs_not_found
+
+    la    $t2, clientes_usado
+    addu  $t2, $t2, $s0
+    lb    $t3, 0($t2)
+    beq   $t3, $zero, hs_next
+
+    la    $t4, clientes_conta
+    li    $t5, 7
+    mul   $t5, $s0, $t5
+    addu  $t4, $t4, $t5
+    la    $t6, cc_buf_acc
+    li    $t7, 0
+hs_cmp6:
+    lb    $t2, 0($t4)
+    lb    $t3, 0($t6)
+    bne   $t2, $t3, hs_next
+    addiu $t4, $t4, 1
+    addiu $t6, $t6, 1
+    addiu $t7, $t7, 1
+    blt   $t7, 6, hs_cmp6
+
+    la    $t4, clientes_dv
+    addu  $t4, $t4, $s0
+    lb    $t2, 0($t4)
+    bne   $t2, $s1, hs_next
+
+    # ---- ACHOU s0 ----
+    sll   $t0, $s0, 2
+    la    $t1, clientes_saldo_cent
+    addu  $t1, $t1, $t0
+    lw    $t2, 0($t1)           # saldo
+    sltu  $v1, $t2, $t8
+    bne   $v1, $zero, hs_saldo_insuf
+
+    subu  $t2, $t2, $t8
+    sw    $t2, 0($t1)
+
+    # detalhado: tipo=0 (débito), conta atual, valor
+    move  $a0, $s0
+    li    $a1, 0
+    la    $a2, cc_buf_acc
+    move  $a3, $t8
+    jal   adicionar_transacao_detalhe
+
+    li    $v0, 4
+    la    $a0, msg_saque_ok
+    syscall
+    li    $v0, 1
+    j     hs_done
+
+hs_next:
+    addiu $s0, $s0, 1
+    j     hs_find
+
+hs_not_found:
+    li    $v0, 4
+    la    $a0, msg_err_cli_inexist
+    syscall
+    li    $v0, 1
+    j     hs_done
+
+hs_saldo_insuf:
+    li    $v0, 4
+    la    $a0, msg_err_saldo_insuf
+    syscall
+    li    $v0, 1
+    j     hs_done
+
+hs_badfmt:
+    li    $v0, 4
+    la    $a0, msg_cc_badfmt
+    syscall
+    li    $v0, 1
+    j     hs_done
+
+hs_not_mine:
+    move  $v0, $zero
+
+hs_done:
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra
+
+
+# ------------------------------------------------------------
+# R8: depositar-<CONTA6>-<DV>-<VALORcentavos>
+#  - Incrementa saldo da conta corrente
+# ------------------------------------------------------------
+handle_depositar:
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)
+    sw    $s1, 20($sp)
+    sw    $s2, 16($sp)
+
+    # prefixo "depositar-"
+    move  $t0, $a0
+    la    $t1, str_cmd_depositar
+hdp_pref:
+    lb    $t2, 0($t1)
+    beq   $t2, $zero, hdp_pref_ok
+    lb    $t3, 0($t0)
+    bne   $t2, $t3, hdp_not_mine
+    addiu $t1, $t1, 1
+    addiu $t0, $t0, 1
+    j     hdp_pref
+
+hdp_pref_ok:
+    # conta (6)
+    la    $t4, cc_buf_acc
+    li    $t5, 0
+hdp_acc:
+    lb    $t6, 0($t0)
+    blt   $t6, 48, hdp_badfmt
+    bgt   $t6, 57, hdp_badfmt
+    sb    $t6, 0($t4)
+    addiu $t4, $t4, 1
+    addiu $t0, $t0, 1
+    addiu $t5, $t5, 1
+    blt   $t5, 6, hdp_acc
+    sb    $zero, 0($t4)
+
+    # '-'
+    lb    $t6, 0($t0)
+    li    $t7, 45
+    bne   $t6, $t7, hdp_badfmt
+    addiu $t0, $t0, 1
+
+    # DV
+    lb    $s1, 0($t0)
+    addiu $t0, $t0, 1
+    li    $t7, 88           # 'X'
+    beq   $s1, $t7, hdp_dv_ok
+    blt   $s1, 48, hdp_badfmt
+    bgt   $s1, 57, hdp_badfmt
+hdp_dv_ok:
+
+    # '-'
+    lb    $t6, 0($t0)
+    li    $t7, 45
+    bne   $t6, $t7, hdp_badfmt
+    addiu $t0, $t0, 1
+
+    # VALOR -> t8
+    move  $t8, $zero
+hdp_val:
+    lb    $t6, 0($t0)
+    beq   $t6, $zero, hdp_val_end
+    blt   $t6, 48, hdp_badfmt
+    bgt   $t6, 57, hdp_badfmt
+    addiu $t6, $t6, -48
+    mul   $t8, $t8, 10
+    addu  $t8, $t8, $t6
+    addiu $t0, $t0, 1
+    j     hdp_val
+hdp_val_end:
+    # normaliza centavos
+    li    $t0, 100
+    divu  $t8, $t0
+    mflo  $t1
+    mul   $t8, $t1, 100
+
+    # procurar cliente
+    lw    $t9, MAX_CLIENTS
+    li    $s0, 0
+hdp_find:
+    beq   $s0, $t9, hdp_not_found
+
+    la    $t2, clientes_usado
+    addu  $t2, $t2, $s0
+    lb    $t3, 0($t2)
+    beq   $t3, $zero, hdp_next
+
+    la    $t4, clientes_conta
+    li    $t5, 7
+    mul   $t5, $s0, $t5
+    addu  $t4, $t4, $t5
+    la    $t6, cc_buf_acc
+    li    $t7, 0
+hdp_cmp6:
+    lb    $t2, 0($t4)
+    lb    $t3, 0($t6)
+    bne   $t2, $t3, hdp_next
+    addiu $t4, $t4, 1
+    addiu $t6, $t6, 1
+    addiu $t7, $t7, 1
+    blt   $t7, 6, hdp_cmp6
+
+    la    $t4, clientes_dv
+    addu  $t4, $t4, $s0
+    lb    $t2, 0($t4)
+    bne   $t2, $s1, hdp_next
+
+    # ---- ACHOU s0 ----
+    sll   $t0, $s0, 2
+    la    $t1, clientes_saldo_cent
+    addu  $t1, $t1, $t0
+    lw    $t2, 0($t1)           # saldo
+    addu  $t2, $t2, $t8
+    sw    $t2, 0($t1)
+
+    # detalhado: tipo=1 (crédito), conta atual, valor
+    move  $a0, $s0
+    li    $a1, 1
+    la    $a2, cc_buf_acc
+    move  $a3, $t8
+    jal   adicionar_transacao_detalhe
+
+    li    $v0, 4
+    la    $a0, msg_dep_ok
+    syscall
+    li    $v0, 1
+    j     hdp_done
+
+hdp_next:
+    addiu $s0, $s0, 1
+    j     hdp_find
+
+hdp_not_found:
+    li    $v0, 4
+    la    $a0, msg_err_cli_inexist
+    syscall
+    li    $v0, 1
+    j     hdp_done
+
+hdp_badfmt:
+    li    $v0, 4
+    la    $a0, msg_cc_badfmt
+    syscall
+    li    $v0, 1
+    j     hdp_done
+
+hdp_not_mine:
+    move  $v0, $zero
+
+hdp_done:
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra

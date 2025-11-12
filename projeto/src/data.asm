@@ -28,6 +28,9 @@
         .globl  str_cmd_time_set, str_cmd_time_show, msg_time_set_ok, msg_time_badfmt, msg_time_range
         # buffer usado por formatar_real / formatar_centavos
         .globl  buffer_valor_formatado
+        .globl  str_cmd_sacar, str_cmd_depositar
+
+
 
 # ---- Constantes ----
 MAX_CLIENTS:        .word 50
@@ -62,6 +65,9 @@ str_cmd_pay_debito:    .asciiz "pagar_debito-"
 str_cmd_pay_credito:   .asciiz "pagar_credito-"
 str_cmd_alt_limite:    .asciiz "alterar_limite-"
 str_cmd_pay_fatura:    .asciiz "pagar_fatura-" 
+str_cmd_sacar:         .asciiz "sacar-"
+str_cmd_depositar:     .asciiz "depositar-"
+
 
 
 
@@ -84,6 +90,9 @@ msg_limite_ok:          .asciiz "Limite atualizado\n"
 msg_limite_baixo_divida:.asciiz "Novo limite menor que a divida atual\n"
 msg_err_valor_maior:     .asciiz "Falha: valor fornecido maior que a dívida do cartão\n"
 msg_pago_com_sucesso:    .asciiz "Pagamento realizado com sucesso!\n"
+
+msg_saque_ok:          .asciiz "Saque realizado\n"
+msg_dep_ok:            .asciiz "Deposito realizado\n"
 
 
 
