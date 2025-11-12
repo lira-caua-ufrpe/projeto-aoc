@@ -1,11 +1,11 @@
-# time.asm — R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
+# time.asm ï¿½ R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
 
 ############################
-# Configuração anti-turbo  #
+# Configuraï¿½ï¿½o anti-turbo  #
 ############################
         .data
-MS_PER_SEC:       .word 1000      # 1s lógico = 1000 ms
-DELTA_CAP_SEC:    .word 5         # no máx. 5s por chamada (evita saltos)
+MS_PER_SEC:       .word 1000      # 1s lï¿½gico = 1000 ms
+DELTA_CAP_SEC:    .word 5         # no mï¿½x. 5s por chamada (evita saltos)
 
         .text
         .globl tick_datetime
@@ -36,9 +36,9 @@ tick_datetime:
 
     la  $t1,ms_last
     lw  $t2,0($t1)           # last_ms
-    beq $t2,$zero, TD_INIT   # primeira chamada após reset/set
+    beq $t2,$zero, TD_INIT   # primeira chamada apï¿½s reset/set
 
-    # delta = now - last ; se wrap (now<last) só atualiza last
+    # delta = now - last ; se wrap (now<last) sï¿½ atualiza last
     subu $t3,$t0,$t2         # delta_ms
     sltu $t4,$t0,$t2
     bne  $t4,$zero, TD_SAVE_ONLY
@@ -102,7 +102,7 @@ TD_ADD_ONE_SEC:
     lw  $t8,0($s7)
     addiu $t8,$t8,1
 
-    # dias do mês
+    # dias do mï¿½s
     la  $a0,curr_mon
     lw  $a0,0($a0)
     la  $a1,curr_year
@@ -287,7 +287,7 @@ HDS_HH:
     nop
     move $s5,$v0
 
-    # validações
+    # validaï¿½ï¿½es
     blez $s0,HDS_RANGE
     blez $s1,HDS_RANGE
     blez $s2,HDS_RANGE

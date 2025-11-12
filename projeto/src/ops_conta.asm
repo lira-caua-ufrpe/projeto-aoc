@@ -1,11 +1,11 @@
-# ops_conta.asm — handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
+# ops_conta.asm ï¿½ handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
 
         .text
         .globl  handle_conta_cadastrar
 
-# handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se não era esse comando
+# handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se nï¿½o era esse comando
 handle_conta_cadastrar:
-    # --- PRÓLOGO ---
+    # --- PRï¿½LOGO ---
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
     sw    $s0, 24($sp)
@@ -25,7 +25,7 @@ cc_pref_loop:
     j     cc_pref_loop
 
 cc_pref_ok:
-    # -------- CPF (11 dígitos) até '-' --------
+    # -------- CPF (11 dï¿½gitos) atï¿½ '-' --------
     la    $t4, cc_buf_cpf
     li    $t5, 0
 cc_cpf_loop:
@@ -47,7 +47,7 @@ cc_cpf_end:
     bne   $t5, $t7,  cc_badcpf
     addiu $t0, $t0, 1                     # pula '-'
 
-    # -------- CONTA (6 dígitos) até '-' --------
+    # -------- CONTA (6 dï¿½gitos) atï¿½ '-' --------
     la    $t4, cc_buf_acc
     li    $t5, 0
 cc_acc_loop:
@@ -69,7 +69,7 @@ cc_acc_end:
     bne   $t5, $t7,  cc_badacc
     addiu $t0, $t0, 1                # pula '-'
 
-    # -------- NOME (trim left; máx 32) --------
+    # -------- NOME (trim left; mï¿½x 32) --------
 cc_name_trim:
     lb    $t6, 0($t0)
     beq   $t6, $zero, cc_badname
@@ -96,7 +96,7 @@ cc_name_end:
 
     # -------- Calcula DV (mod11 pesos 2..7, d0 = menos significativo) --------
     la    $t0, cc_buf_acc
-    addiu $t0, $t0, 5        # aponta pro último dígito
+    addiu $t0, $t0, 5        # aponta pro ï¿½ltimo dï¿½gito
     li    $t1, 2             # peso
     move  $t2, $zero         # soma
     li    $t3, 6             # contador
@@ -175,7 +175,7 @@ cc_next_slot:
 cc_scan_end:
     bltz  $s2, cc_full
 
-    # -------- Escreve no índice s2 --------
+    # -------- Escreve no ï¿½ndice s2 --------
     # ponteiros base
     la    $t0, clientes_usado
     la    $t1, clientes_cpf
@@ -226,7 +226,7 @@ cc_scan_end:
 
     sw    $zero, 0($t5)              # saldo = 0
     lw    $a0, LIMITE_PADRAO_CENT
-    sw    $a0, 0($t6)                # limite = padrão
+    sw    $a0, 0($t6)                # limite = padrï¿½o
     sw    $zero, 0($t7)              # devido = 0
 
     # sucesso
@@ -234,10 +234,10 @@ cc_scan_end:
     la    $a0, msg_cc_ok
     syscall
     li    $v0, 4
-    move  $a0, $t2                   # conta (string de 6 dígitos)
+    move  $a0, $t2                   # conta (string de 6 dï¿½gitos)
     syscall
     li    $v0, 11
-    li    $a0, '-'                   # hífen
+    li    $a0, '-'                   # hï¿½fen
     syscall
     li    $v0, 11
     move  $a0, $s1                   # DV (char)
@@ -303,7 +303,7 @@ cc_not_mine:
     move  $v0, $zero
     j     cc_epilogue
 
-# --- EPÍLOGO COMUM ---
+# --- EPï¿½LOGO COMUM ---
 cc_epilogue:
     lw    $s2, 16($sp)
     lw    $s1, 20($sp)
@@ -313,10 +313,37 @@ cc_epilogue:
     jr    $ra
 
 
+# FunÃ§Ã£o para extrair conta e DV do comando
+# A conta Ã© de 6 dÃ­gitos e o DV Ã© um caractere (0-9 ou X)
+# A funÃ§Ã£o coloca a conta em cc_buf_acc e o DV em cc_buf_dv
+# Exemplo de comando: "123456-0"
+
+extract_conta:
+    # Extrai os primeiros 6 caracteres como a conta
+    li   $t0, 6                  # Limite de 6 dÃ­gitos para a conta
+    la   $t1, cc_buf_acc         # EndereÃ§o onde vai armazenar a conta
+extract_conta_loop:
+    lb   $t2, 0($a0)             # Carrega o prÃ³ximo caractere do comando
+    beq  $t2, 45, extract_dv     # Se for o '-' (45 em ASCII), comeÃ§a a extrair o DV
+    sb   $t2, 0($t1)             # Armazena o caractere na conta
+    addiu $t1, $t1, 1            # AvanÃ§a para o prÃ³ximo byte de conta
+    addiu $a0, $a0, 1            # AvanÃ§a para o prÃ³ximo caractere do comando
+    addiu $t0, $t0, -1
+    bgtz $t0, extract_conta_loop # Continua atÃ© 6 caracteres
+    j     extract_done
+
+extract_dv:
+    lb   $t2, 0($a0)             # Extrai o DV (apÃ³s o '-')
+    la   $t3, cc_buf_dv          # EndereÃ§o onde vai armazenar o DV
+    sb   $t2, 0($t3)             # Armazena o DV
+
+extract_done:
+    jr   $ra
+
 # ============================================================
 # buscar_cliente_por_conta_completa
-# a0 = endereço da string "XXXXXX-D"
-# v0 = índice do cliente (0..49) ou -1 se não achar
+# a0 = endereï¿½o da string "XXXXXX-D"
+# v0 = ï¿½ndice do cliente (0..49) ou -1 se nï¿½o achar
 # ============================================================
         .globl  buscar_cliente_por_conta_completa
 buscar_cliente_por_conta_completa:
@@ -342,7 +369,7 @@ bccc_loop_i:
     la    $t1, clientes_usado
     addu  $t1, $t1, $s0
     lb    $s4, 0($t1)
-    beq   $s4, $zero, bccc_next_i   # não usado, pula
+    beq   $s4, $zero, bccc_next_i   # nï¿½o usado, pula
 
     # ptr conta[i] = clientes_conta + i*7
     la    $s1, clientes_conta
@@ -350,7 +377,7 @@ bccc_loop_i:
     mul   $t3, $s0, $t2
     addu  $s1, $s1, $t3
 
-    # compara 6 dígitos
+    # compara 6 dï¿½gitos
     li    $t4, 0                  # k = 0
 bccc_cmp6:
     li    $t5, 6
@@ -364,11 +391,11 @@ bccc_cmp6:
     j     bccc_cmp6
 
 bccc_cmp_dash:
-    # buffer está agora no '-', garante que é '-'
+    # buffer estï¿½ agora no '-', garante que ï¿½ '-'
     lb    $t6, 0($s2)
     li    $t7, 45           # '-'
     bne   $t6, $t7, bccc_next_reset
-    # avança pro DV do buffer
+    # avanï¿½a pro DV do buffer
     addiu $s2, $s2, 1
 
     # DV do cliente
@@ -384,7 +411,7 @@ bccc_cmp_dash:
     move  $v0, $s0
     j     bccc_end
 
-# restaurar o ponteiro do buffer antes de ir pro próximo i
+# restaurar o ponteiro do buffer antes de ir pro prï¿½ximo i
 bccc_next_reset:
     # buffer original = a0
     move  $s2, $a0
