@@ -1,4 +1,5 @@
 # io.asm — rotinas básicas de E/S via syscalls (terminal MARS)
+# R11: terminal lê linha até ENTER e só então interpreta o comando.
 
 .text
 .globl print_str
@@ -9,25 +10,26 @@
 # print_str(a0=addr) -> imprime string '\0'-terminada (syscall 4)
 # ------------------------------------------------------------
 print_str:
-    beq  $a0, $zero, print_str_end
-    li   $v0, 4          # print_string
+    beq   $a0, $zero, print_str_end
+    li    $v0, 4          # print_string
     syscall
 print_str_end:
-    jr   $ra
+    jr    $ra
+    nop
 
 # ------------------------------------------------------------
 # read_line(a0=buf, a1=maxlen) -> v0 = len (sem '\n')
-# Usa syscall 8 (read_string), remove '\n' se presente e
-# retorna o tamanho (sem contar '\0').
+# Usa syscall 8 (read_string), troca '\n' por '\0' se presente
+# e retorna o tamanho (sem contar '\0').
 # ------------------------------------------------------------
 read_line:
     # salva $ra, $t0-$t3
     addiu $sp, $sp, -20
     sw    $ra, 16($sp)
     sw    $t0, 12($sp)
-    sw    $t1, 8($sp)
-    sw    $t2, 4($sp)
-    sw    $t3, 0($sp)
+    sw    $t1,  8($sp)
+    sw    $t2,  4($sp)
+    sw    $t3,  0($sp)
 
     # chamada de leitura
     move  $t0, $a0        # t0 = buf
@@ -47,12 +49,14 @@ RL_LOOP:
     addiu $v0, $v0, 1
     addiu $t2, $t2, 1
     j     RL_LOOP
+    nop
 
 RL_NEWLINE:
     # sobrescreve '\n' com '\0' e encerra
     sb    $zero, 0($t2)
     # v0 já é o len sem '\n'
     j     RL_CLEANUP
+    nop
 
 RL_END:
     # terminou sem '\n'
@@ -60,62 +64,68 @@ RL_END:
 
 RL_CLEANUP:
     # restaura registradores
-    lw    $t3, 0($sp)
-    lw    $t2, 4($sp)
-    lw    $t1, 8($sp)
+    lw    $t3,  0($sp)
+    lw    $t2,  4($sp)
+    lw    $t1,  8($sp)
     lw    $t0, 12($sp)
     lw    $ra, 16($sp)
     addiu $sp, $sp, 20
     jr    $ra
+    nop
 
 # ------------------------------------------------------------
 # strip_line_end(a0=buf) -> v0=len
 # Remove \n \r espaço e \t à direita; retorna novo comprimento.
 # ------------------------------------------------------------
 strip_line_end:
-    beq  $a0, $zero, sle_nullptr       # não tocar memória se ponteiro nulo
+    beq   $a0, $zero, sle_nullptr       # não tocar memória se ponteiro nulo
 
-    move $t0, $a0              # t0 = ptr = buf
+    move  $t0, $a0              # t0 = ptr = buf
 
 # encontra o '\0'
 sle_scan:
-    lb   $t1, 0($t0)
-    beq  $t1, $zero, sle_at_end
+    lb    $t1, 0($t0)
+    beq   $t1, $zero, sle_at_end
     addiu $t0, $t0, 1
-    j    sle_scan
+    j     sle_scan
+    nop
 
 # t0 aponta para o '\0' -> último índice real é t0-1
 sle_at_end:
     addiu $t0, $t0, -1
-    blt  $t0, $a0, sle_empty
+    blt   $t0, $a0, sle_empty
 
 # apaga enquanto for \n \r ' ' \t
 sle_trim_loop:
-    blt  $t0, $a0, sle_empty
-    lb   $t1, 0($t0)
-    li   $t2, 10
-    beq  $t1, $t2, sle_wipe
-    li   $t2, 13
-    beq  $t1, $t2, sle_wipe
-    li   $t2, 32
-    beq  $t1, $t2, sle_wipe
-    li   $t2, 9
-    bne  $t1, $t2, sle_done
+    blt   $t0, $a0, sle_empty
+    lb    $t1, 0($t0)
+    li    $t2, 10              # '\n'
+    beq   $t1, $t2, sle_wipe
+    li    $t2, 13              # '\r'
+    beq   $t1, $t2, sle_wipe
+    li    $t2, 32              # ' '
+    beq   $t1, $t2, sle_wipe
+    li    $t2, 9               # '\t'
+    bne   $t1, $t2, sle_done
 sle_wipe:
-    sb   $zero, 0($t0)
+    sb    $zero, 0($t0)
     addiu $t0, $t0, -1
-    j    sle_trim_loop
+    j     sle_trim_loop
+    nop
 
 sle_done:
-    subu $v0, $t0, $a0
+    subu  $v0, $t0, $a0
     addiu $v0, $v0, 1
-    jr   $ra
+    jr    $ra
+    nop
 
 sle_empty:
-    sb   $zero, 0($a0)
-    move $v0, $zero
-    jr   $ra
+    sb    $zero, 0($a0)
+    move  $v0, $zero
+    jr    $ra
+    nop
 
 sle_nullptr:
-    move $v0, $zero
-    jr   $ra
+    move  $v0, $zero
+    jr    $ra
+    nop
