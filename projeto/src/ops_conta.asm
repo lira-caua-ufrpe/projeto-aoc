@@ -1,7 +1,13 @@
 # ops_conta.asm � handler de conta_cadastrar-<CPF>-<CONTA6>-<NOME>
 
+.data
+str_cmd_conta_fechar: .asciiz "conta_fechar-"
         .text
         .globl  handle_conta_cadastrar
+        .globl  handle_conta_fechar
+
+        
+
 
 # handle_conta_cadastrar(a0=inp_buf) -> v0=1 se tratou (sucesso/erro), 0 se n�o era esse comando
 handle_conta_cadastrar:
@@ -432,3 +438,167 @@ bccc_end:
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
     jr    $ra
+
+handle_conta_fechar:
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)   # índice do cliente
+    sw    $s1, 20($sp)   # DV
+
+    # Prefixo "conta_fechar-"
+    move  $t0, $a0
+    la    $t1, str_cmd_conta_fechar
+cf_chk_pref_loop:
+    lb    $t2, 0($t1)
+    beq   $t2, $zero, cf_pref_ok
+    lb    $t3, 0($t0)
+    bne   $t2, $t3, cf_not_mine
+    addiu $t1, $t1, 1
+    addiu $t0, $t0, 1
+    j     cf_chk_pref_loop
+    nop
+
+cf_pref_ok:
+    # CONTA (6 dígitos)
+    la    $t4, cc_buf_acc
+    li    $t5, 0
+cf_acc_loop:
+    lb    $t6, 0($t0)
+    blt   $t6, 48, cf_badfmt
+    bgt   $t6, 57, cf_badfmt
+    sb    $t6, 0($t4)
+    addiu $t4, $t4, 1
+    addiu $t0, $t0, 1
+    addiu $t5, $t5, 1
+    blt   $t5, 6, cf_acc_loop
+    sb    $zero, 0($t4)
+
+    # '-'
+    lb    $t6, 0($t0)
+    li    $t7, 45
+    bne   $t6, $t7, cf_badfmt
+    addiu $t0, $t0, 1
+
+    # DV
+    lb    $s1, 0($t0)
+    addiu $t0, $t0, 1
+    li    $t7, 88              # 'X'
+    beq   $s1, $t7, cf_dv_ok
+    blt   $s1, 48, cf_badfmt
+    bgt   $s1, 57, cf_badfmt
+cf_dv_ok:
+
+    # Verificar se a conta existe
+    lw    $t9, MAX_CLIENTS
+    li    $s0, 0
+cf_find_loop:
+    beq   $s0, $t9, cf_not_found
+
+    la    $a0, clientes_usado
+    addu  $a0, $a0, $s0
+    lb    $a1, 0($a0)
+    beq   $a1, $zero, cf_next_i
+
+    # compara conta(6)
+    la    $a2, clientes_conta
+    li    $a3, 7
+    mul   $a3, $s0, $a3
+    addu  $a2, $a2, $a3
+    la    $a3, cc_buf_acc
+    li    $v1, 0
+cf_cmp6:
+    lb    $t2, 0($a2)
+    lb    $t3, 0($a3)
+    bne   $t2, $t3, cf_next_i
+    addiu $a2, $a2, 1
+    addiu $a3, $a3, 1
+    addiu $v1, $v1, 1
+    blt   $v1, 6, cf_cmp6
+
+    # compara DV
+    la    $a2, clientes_dv
+    addu  $a2, $a2, $s0
+    lb    $t2, 0($a2)
+    bne   $t2, $s1, cf_next_i
+
+    # ---- ACHOU s0 ----
+    sll   $t0, $s0, 2
+    la    $t1, clientes_saldo_cent
+    addu  $t1, $t1, $t0
+    lw    $t2, 0($t1)           # saldo
+    bne   $t2, $zero, cf_err_saldo   # saldo != 0  -> erro
+
+
+    # Verificar dívida do cartão de crédito
+    la    $t3, clientes_devido_cent
+    addu  $t3, $t3, $t0
+    lw    $t4, 0($t3)           # dívida
+    bne   $t4, $zero, cf_err_divida  # dívida != 0 -> erro
+
+
+    # Apagar registros de transações
+    li    $t5, 50
+    la    $t6, trans_deb_vals
+    la    $t7, trans_cred_vals
+    move  $t8, $zero
+cf_clear_trans:
+    sw    $t8, 0($t6)
+    sw    $t8, 0($t7)
+    addiu $t6, $t6, 4
+    addiu $t7, $t7, 4
+    addiu $t5, $t5, -1
+    bgtz  $t5, cf_clear_trans
+
+    # Apagar cliente
+    la    $t9, clientes_usado
+    addu  $t9, $t9, $s0
+    sb    $zero, 0($t9)
+
+    li    $v0, 4
+    la    $a0, msg_sucesso_conta_fechada
+    syscall
+    li    $v0, 1
+    j     cf_done
+
+cf_err_saldo:
+    li    $v0, 4
+    la    $a0, msg_err_saldo_devedor
+    syscall
+    li    $v0, 1
+    j     cf_done
+
+cf_err_divida:
+    li    $v0, 4
+    la    $a0, msg_err_limite_devido
+    syscall
+    li    $v0, 1
+    j     cf_done
+
+cf_next_i:
+    addiu $s0, $s0, 1
+    j     cf_find_loop
+
+cf_not_found:
+    li    $v0, 4
+    la    $a0, msg_err_cpf_nao_cadastrado
+    syscall
+    li    $v0, 1
+cf_not_mine:
+    move  $v0, $zero
+    j     cf_done
+
+
+cf_done:
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra
+    nop
+
+cf_badfmt:
+    li    $v0, 4
+    la    $a0, msg_cc_badfmt   # Mensagem de erro de formato
+    syscall
+    li    $v0, 1
+    j     cf_done

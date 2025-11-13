@@ -1,8 +1,8 @@
 # ============================================================
-# transacoes.asm – transações detalhadas + formatador simples
-# layout de 32 bytes por transação:
+# transacoes.asm ï¿½ transaï¿½ï¿½es detalhadas + formatador simples
+# layout de 32 bytes por transaï¿½ï¿½o:
 #  [0]       : 1 = ativo, 0 = vazio
-#  [1..8]    : conta destino (string, até 8, termina em 0)
+#  [1..8]    : conta destino (string, atï¿½ 8, termina em 0)
 #  [9..12]   : valor em centavos (4 bytes, salvos byte a byte)
 #  [13..31]  : data/hora "DD/MM/AAAA HH:MM:SS" + 0
 # 50 trans por cliente -> 1600 bytes por cliente
@@ -35,7 +35,7 @@ mostrar_transacoes_debito:
     li    $t0, 1600              # 50 * 32
     mul   $t1, $s0, $t0
     la    $s2, transacoes_detalhe_debito
-    addu  $s2, $s2, $t1          # s2 = início do bloco do cliente
+    addu  $s2, $s2, $t1          # s2 = inï¿½cio do bloco do cliente
 
     li    $s1, 0
 mtd_loop:
@@ -50,7 +50,7 @@ mtd_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaços
+    # 2 espaï¿½os
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -61,7 +61,7 @@ mtd_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaços
+    # 4 espaï¿½os
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -136,7 +136,7 @@ mtc_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaços
+    # 2 espaï¿½os
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -147,7 +147,7 @@ mtc_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaços
+    # 4 espaï¿½os
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -195,7 +195,7 @@ mtc_fim:
 # ------------------------------------------------------------
 # adicionar_transacao_detalhe
 # a0 = idx_cliente
-# a1 = tipo (0 = débito, 1 = crédito)
+# a1 = tipo (0 = dï¿½bito, 1 = crï¿½dito)
 # a2 = ponteiro pra conta
 # a3 = valor em centavos
 # ------------------------------------------------------------
@@ -415,7 +415,7 @@ print_four_buffer:
 
 # ------------------------------------------------------------
 # formatar_centavos(a0 = valor) -> v0 = &buffer_valor_formatado
-# versão alinhada (não bagunça o $sp byte a byte)
+# versï¿½o alinhada (nï¿½o bagunï¿½a o $sp byte a byte)
 # ------------------------------------------------------------
 formatar_centavos:
     addiu $sp, $sp, -32
@@ -433,7 +433,7 @@ formatar_centavos:
     sb    $t0, 1($s0)
     li    $t0, ' '
     sb    $t0, 2($s0)
-    addiu $s1, $s0, 3                  # s1 = onde vamos escrever número
+    addiu $s1, $s0, 3                  # s1 = onde vamos escrever nï¿½mero
 
     # separa reais/centavos
     li    $t0, 100
@@ -441,7 +441,7 @@ formatar_centavos:
     mflo  $s2            # reais
     mfhi  $t1            # centavos
 
-    # usar parte final do buffer pra guardar dígitos ao contrário
+    # usar parte final do buffer pra guardar dï¿½gitos ao contrï¿½rio
     addiu $s3, $s0, 24
     move  $t2, $s3
 
@@ -464,7 +464,7 @@ fc_write_zero:
     addiu $t2, $t2, 1
 
 fc_copy_back:
-    # t2 aponta 1 além do último dígito
+    # t2 aponta 1 alï¿½m do ï¿½ltimo dï¿½gito
     addiu $t2, $t2, -1
 fc_copy_loop:
     lb    $t4, 0($t2)
@@ -475,12 +475,12 @@ fc_copy_loop:
     j     fc_copy_loop
 
 fc_copy_done:
-    # vírgula
+    # vï¿½rgula
     li    $t4, ','
     sb    $t4, 0($s1)
     addiu $s1, $s1, 1
 
-    # centavos 2 dígitos
+    # centavos 2 dï¿½gitos
     li    $t3, 10
     divu  $t1, $t3
     mflo  $t4
@@ -503,3 +503,16 @@ fc_copy_done:
     addiu $sp, $sp, 32
     jr    $ra
     nop
+
+# Apagar registros de transaÃ§Ãµes
+li    $t5, 50
+la    $t6, trans_deb_vals
+la    $t7, trans_cred_vals
+move  $t8, $zero
+cf_clear_trans_v2:
+    sw    $t8, 0($t6)
+    sw    $t8, 0($t7)
+    addiu $t6, $t6, 4
+    addiu $t7, $t7, 4
+    addiu $t5, $t5, -1
+    bgtz  $t5, cf_clear_trans_v2

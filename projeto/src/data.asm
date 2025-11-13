@@ -88,11 +88,16 @@ msg_err_limite_insuf:   .asciiz "Limite de credito insuficiente\n"
 msg_err_cli_inexist:    .asciiz "Cliente inexistente\n"
 msg_limite_ok:          .asciiz "Limite atualizado\n"
 msg_limite_baixo_divida:.asciiz "Novo limite menor que a divida atual\n"
-msg_err_valor_maior:     .asciiz "Falha: valor fornecido maior que a dívida do cartão\n"
+msg_err_valor_maior:     .asciiz "Falha: valor fornecido maior que a dÃ­vida do cartÃ£o\n"
 msg_pago_com_sucesso:    .asciiz "Pagamento realizado com sucesso!\n"
 
 msg_saque_ok:          .asciiz "Saque realizado\n"
 msg_dep_ok:            .asciiz "Deposito realizado\n"
+
+msg_err_saldo_devedor:   .asciiz "Falha: saldo devedor ainda não quitado. Saldo da conta corrente: R$ "
+msg_err_limite_devido:   .asciiz "Falha: limite de crédito devido. Limite de crédito: R$ "
+msg_err_cpf_nao_cadastrado: .asciiz "Falha: CPF não possui cadastro.\n"
+msg_sucesso_conta_fechada:  .asciiz "Conta fechada com sucesso!\n"
 
 
 
