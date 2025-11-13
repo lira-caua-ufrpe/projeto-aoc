@@ -30,6 +30,10 @@
         # buffer usado por formatar_real / formatar_centavos
         .globl  buffer_valor_formatado
         .globl  str_cmd_sacar, str_cmd_depositar
+        # ====== Conta Format (strings e buffers) ======
+        .globl str_cmd_conta_format, msg_fmt_confirm1, msg_fmt_confirm_q
+        .globl msg_fmt_cancel, msg_fmt_conta_ok, dash_str, onechar_buf
+
 
 # ---- Constantes ----
 MAX_CLIENTS:        .word 50
@@ -76,6 +80,7 @@ help_txt:
     .ascii "  salvar       - grava o estado no arquivo\n"
     .ascii "  recarregar   - recarrega o estado do arquivo\n"
     .ascii "  formatar     - apaga todos os dados em memoria\n"
+    .ascii "  conta_format-<CONTA6>-<DV>\n"
     .byte 0
 
 
@@ -99,6 +104,7 @@ str_cmd_depositar:     .asciiz "depositar-"
 str_salvar:       .asciiz "salvar"
 str_recarregar:   .asciiz "recarregar"
 str_formatar:     .asciiz "formatar"
+
 
 # ---- Mensagens gerais ----
 msg_cc_ok:              .asciiz "Cliente cadastrado com sucesso. Numero da conta "
@@ -133,6 +139,7 @@ msg_salvo_fail:   .asciiz "Falha ao salvar.\n"
 msg_load_ok:      .asciiz "Dados recarregados do arquivo.\n"
 msg_load_fail:    .asciiz "Nao foi possivel recarregar (arquivo ausente ou erro).\n"
 msg_fmt_ok:       .asciiz "Estado limpo (clientes e transacoes apagados; nao salvou automaticamente).\n"
+
 
 # ==========================
 #   Estruturas dos clientes
@@ -210,6 +217,14 @@ msg_time_set_ok:   .asciiz "Data/hora configurada\n"
 msg_time_badfmt:   .asciiz "Formato invalido (use DD/MM/AAAA- HH:MM:SS)\n"
 msg_time_range:    .asciiz "Valores fora de faixa\n"
 
+str_cmd_conta_format: .asciiz "conta_format-"
+msg_fmt_confirm1:     .asciiz "Confirmar formatacao da conta "
+msg_fmt_confirm_q:    .asciiz "? (s/N): "
+msg_fmt_cancel:       .asciiz "Operacao cancelada.\n"
+msg_fmt_conta_ok:     .asciiz "Conta formatada (transacoes zeradas).\n"
+dash_str:             .asciiz "-"
+onechar_buf:          .space 2
+
 # ===================== R7: Juros automáticos =====================
 # 1% a cada 60 segundos. Relógio absoluto em segundos e gate anti-reentrada.
 
@@ -234,3 +249,6 @@ juros_gate:         .word 0        # 0 = liberado; 1 = travado (ops_fin controla
 
         .globl JUROS_USA_VALOR_NEG
 JUROS_USA_VALOR_NEG:.word 1        # juros registrados como valor negativo (convenção)
+
+
+

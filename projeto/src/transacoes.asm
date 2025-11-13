@@ -1,16 +1,16 @@
 # ============================================================
-# transacoes.asm ï¿½ transaï¿½ï¿½es detalhadas + formatador simples
-# layout de 32 bytes por transaï¿½ï¿½o:
-#  [0]       : 1 = ativo, 0 = vazio
-#  [1..8]    : conta destino (string, atï¿½ 8, termina em 0)
-#  [9..12]   : valor em centavos (4 bytes, salvos byte a byte)
-#  [13..31]  : data/hora "DD/MM/AAAA HH:MM:SS" + 0
+# transacoes.asm — transações detalhadas + utilitários
+# Layout (32 bytes por transação):
+#   [0]      : 1=ativo, 0=vazio
+#   [1..8]   : conta destino (string, até 8, termina em 0)
+#   [9..12]  : valor em centavos (4 bytes, big-endian)
+#   [13..31] : "DD/MM/AAAA HH:MM:SS" + 0
 # 50 trans por cliente -> 1600 bytes por cliente
 # ============================================================
+
         .data
 transacoes_detalhe_debito:   .space 80000
 transacoes_detalhe_credito:  .space 80000
-
 msg_transferencia:           .asciiz "TRANSF"
 
         .text
@@ -18,7 +18,7 @@ msg_transferencia:           .asciiz "TRANSF"
         .globl mostrar_transacoes_credito
         .globl adicionar_transacao_detalhe
         .globl preencher_data_hora_atual
-        .globl formatar_centavos     # usado pelo extrato
+        .globl formatar_centavos
 
 # ------------------------------------------------------------
 # mostrar_transacoes_debito(a0 = idx_cliente)
@@ -28,14 +28,14 @@ mostrar_transacoes_debito:
     sw    $ra, 20($sp)
     sw    $s0, 16($sp)
     sw    $s1, 12($sp)
-    sw    $s2, 8($sp)
+    sw    $s2,  8($sp)
 
-    move  $s0, $a0               # idx cliente
+    move  $s0, $a0
 
     li    $t0, 1600              # 50 * 32
     mul   $t1, $s0, $t0
     la    $s2, transacoes_detalhe_debito
-    addu  $s2, $s2, $t1          # s2 = inï¿½cio do bloco do cliente
+    addu  $s2, $s2, $t1
 
     li    $s1, 0
 mtd_loop:
@@ -50,7 +50,7 @@ mtd_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaï¿½os
+    # 2 espaços
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -61,7 +61,7 @@ mtd_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaï¿½os
+    # 4 espaços
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -69,7 +69,7 @@ mtd_loop:
     syscall
     syscall
 
-    # valor em [9..12], ler byte a byte e montar em a0
+    # valor em [9..12] (big-endian -> word)
     lbu   $t2, 9($s2)
     lbu   $t3, 10($s2)
     lbu   $t4, 11($s2)
@@ -98,7 +98,7 @@ mtd_next:
     j     mtd_loop
 
 mtd_fim:
-    lw    $s2, 8($sp)
+    lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
     lw    $ra, 20($sp)
@@ -114,7 +114,7 @@ mostrar_transacoes_credito:
     sw    $ra, 20($sp)
     sw    $s0, 16($sp)
     sw    $s1, 12($sp)
-    sw    $s2, 8($sp)
+    sw    $s2,  8($sp)
 
     move  $s0, $a0
 
@@ -136,7 +136,7 @@ mtc_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaï¿½os
+    # 2 espaços
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -147,7 +147,7 @@ mtc_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaï¿½os
+    # 4 espaços
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -155,7 +155,7 @@ mtc_loop:
     syscall
     syscall
 
-    # valor em [9..12]
+    # valor em [9..12] (big-endian -> word)
     lbu   $t2, 9($s2)
     lbu   $t3, 10($s2)
     lbu   $t4, 11($s2)
@@ -184,7 +184,7 @@ mtc_next:
     j     mtc_loop
 
 mtc_fim:
-    lw    $s2, 8($sp)
+    lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
     lw    $ra, 20($sp)
@@ -195,16 +195,16 @@ mtc_fim:
 # ------------------------------------------------------------
 # adicionar_transacao_detalhe
 # a0 = idx_cliente
-# a1 = tipo (0 = dï¿½bito, 1 = crï¿½dito)
-# a2 = ponteiro pra conta
-# a3 = valor em centavos
+# a1 = tipo (0 = débito, 1 = crédito)
+# a2 = ponteiro pra conta (string)
+# a3 = valor em centavos (word)
 # ------------------------------------------------------------
 adicionar_transacao_detalhe:
     addiu $sp, $sp, -24
     sw    $ra, 20($sp)
     sw    $s0, 16($sp)
     sw    $s1, 12($sp)
-    sw    $s2, 8($sp)
+    sw    $s2,  8($sp)
 
     move  $s0, $a0
     move  $s1, $a1
@@ -220,7 +220,7 @@ atd_deb:
 atd_base_ok:
     addu  $t2, $t2, $t1
 
-    # achar slot
+    # achar slot livre
     li    $t3, 0
 atd_find:
     li    $t4, 50
@@ -269,7 +269,7 @@ atd_full:
     li    $v0, 0
 
 atd_end:
-    lw    $s2, 8($sp)
+    lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
     lw    $ra, 20($sp)
@@ -278,12 +278,12 @@ atd_end:
     nop
 
 # ------------------------------------------------------------
-# preencher_data_hora_atual(a0 = buffer 20B)
+# preencher_data_hora_atual(a0 = buffer de 20B)
 # ------------------------------------------------------------
 preencher_data_hora_atual:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
-    sw    $s0, 8($sp)
+    sw    $s0,  8($sp)
 
     move  $s0, $a0
 
@@ -360,7 +360,7 @@ preencher_data_hora_atual:
 
     sb    $zero, 0($s0)
 
-    lw    $s0, 8($sp)
+    lw    $s0,  8($sp)
     lw    $ra, 12($sp)
     addiu $sp, $sp, 16
     jr    $ra
@@ -414,8 +414,7 @@ print_four_buffer:
     nop
 
 # ------------------------------------------------------------
-# formatar_centavos(a0 = valor) -> v0 = &buffer_valor_formatado
-# versï¿½o alinhada (nï¿½o bagunï¿½a o $sp byte a byte)
+# formatar_centavos(a0 = valor em centavos) -> v0 = &buffer_valor_formatado
 # ------------------------------------------------------------
 formatar_centavos:
     addiu $sp, $sp, -32
@@ -425,24 +424,21 @@ formatar_centavos:
     sw    $s2, 16($sp)
     sw    $s3, 12($sp)
 
-    la    $s0, buffer_valor_formatado   # base
-    # "R$ "
+    la    $s0, buffer_valor_formatado
     li    $t0, 'R'
     sb    $t0, 0($s0)
     li    $t0, '$'
     sb    $t0, 1($s0)
     li    $t0, ' '
     sb    $t0, 2($s0)
-    addiu $s1, $s0, 3                  # s1 = onde vamos escrever nï¿½mero
+    addiu $s1, $s0, 3
 
-    # separa reais/centavos
     li    $t0, 100
     divu  $a0, $t0
     mflo  $s2            # reais
     mfhi  $t1            # centavos
 
-    # usar parte final do buffer pra guardar dï¿½gitos ao contrï¿½rio
-    addiu $s3, $s0, 24
+    addiu $s3, $s0, 24   # pilha de dígitos (inversa)
     move  $t2, $s3
 
     beq   $s2, $zero, fc_write_zero
@@ -464,7 +460,6 @@ fc_write_zero:
     addiu $t2, $t2, 1
 
 fc_copy_back:
-    # t2 aponta 1 alï¿½m do ï¿½ltimo dï¿½gito
     addiu $t2, $t2, -1
 fc_copy_loop:
     lb    $t4, 0($t2)
@@ -475,12 +470,10 @@ fc_copy_loop:
     j     fc_copy_loop
 
 fc_copy_done:
-    # vï¿½rgula
     li    $t4, ','
     sb    $t4, 0($s1)
     addiu $s1, $s1, 1
 
-    # centavos 2 dï¿½gitos
     li    $t3, 10
     divu  $t1, $t3
     mflo  $t4
@@ -492,7 +485,6 @@ fc_copy_done:
     addiu $s1, $s1, 2
 
     sb    $zero, 0($s1)
-
     la    $v0, buffer_valor_formatado
 
     lw    $s3, 12($sp)
@@ -503,16 +495,3 @@ fc_copy_done:
     addiu $sp, $sp, 32
     jr    $ra
     nop
-
-# Apagar registros de transaÃ§Ãµes
-li    $t5, 50
-la    $t6, trans_deb_vals
-la    $t7, trans_cred_vals
-move  $t8, $zero
-cf_clear_trans_v2:
-    sw    $t8, 0($t6)
-    sw    $t8, 0($t7)
-    addiu $t6, $t6, 4
-    addiu $t7, $t7, 4
-    addiu $t5, $t5, -1
-    bgtz  $t5, cf_clear_trans_v2

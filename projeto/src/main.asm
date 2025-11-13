@@ -12,6 +12,8 @@
 .include "ops_util.asm"
 .include "persist.asm"        # R10: persistência (save/load)
 .include "cmd_persist.asm"   # <— NOVO: cmd_13/14/15
+.include "cmd_conta_format.asm"
+
 
 .text
 .globl main
@@ -139,6 +141,11 @@ dispatch_cmds:
     # conta_fechar-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_conta_fechar
+    bne  $v0, $zero, main_loop
+    
+    # conta_format-<CONTA6>-<DV>
+    la   $a0, inp_buf
+    jal  handle_conta_format
     bne  $v0, $zero, main_loop
 
     # nada pegou
