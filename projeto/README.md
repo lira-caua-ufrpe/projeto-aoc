@@ -230,41 +230,73 @@ opcode-shell>>
         Não salva automaticamente no arquivo externo.  
         Para que a formatação seja persistida, é necessário chamar salvar depois.
 
-### Roteiro de teste rápido
+### Roteiro de Teste Rápido
 
-Cadastrar cliente:
-conta\_cadastrar-12345678901-123456-Ana
+1.  __Cadastrar cliente__
+    
+    ```
+    conta_cadastrar-12345678901-123456-Ana
+    ```
+    
+2.  __Configurar data/hora__
+    
+    ```
+    datetime_set-11/11/2025- 23:59:55
+    ```
+    
+3.  __Ver relógio avançando__
+    
+    ```
+    datetime_show
+    datetime_show
+    datetime_show
+    ```
+    
+    (Chame algumas vezes para ver segundos/minutos avançando)
+4.  __Testar crédito/débito + extratos__
+    
+    ```
+    pagar_credito-123456-X-2000
+    pagar_debito-123456-X-150
+    
+    debito_extrato-123456-X
+    credito_extrato-123456-X
+    ```
+    
+5.  __Testar pagamento de fatura__
+    
+    ```
+    pagar_fatura-123456-X-150-S
+    ```
+    
+6.  __Testar saque e depósito__
+    
+    ```
+    depositar-123456-X-10000
+    sacar-123456-X-5000
+    debito_extrato-123456-X
+    ```
+    
+7.  __Testar persistência__
+    
+    ```
+    salvar
+    formatar
+    recarregar   # deve voltar aos dados salvos
+    ```
+    
+8.  __Encerrar conta__  
+    _(depois de zerar saldo e dívida)_
+    
+    ```
+    conta_fechar-123456-X
+    ```
+    
 
-Configurar data/hora:
-datetime\_set-11/11/2025- 23:59:55
+#### Observação:
 
-Ver relógio avançando:
-datetime\_show
-datetime\_show
-datetime\_show
-
-Testar crédito/débito + extratos:
-pagar\_credito-123456-X-2000
-pagar\_debito-123456-X-150
-
-debito\_extrato-123456-X
-credito\_extrato-123456-X
-
-Testar pagamento de fatura:
-pagar\_fatura-123456-X-150-S
-
-Testar saque e depósito:
-depositar-123456-X-10000
-sacar-123456-X-5000
-debito\_extrato-123456-X
-
-Persistência:
-salvar
-formatar
-recarregar   # deve voltar aos dados salvos
-
-Encerrar conta (depois de zerar saldo e dívida):
-conta\_fechar-123456-X
+*   Use `debito_extrato` e `credito_extrato` para conferir se saldo e dívida realmente zeraram antes de fechar a conta.
+*   Após cada comando, verifique as mensagens retornadas para garantir os fluxos corretos.
 
 ### Troubleshooting
 
