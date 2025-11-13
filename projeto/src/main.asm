@@ -117,6 +117,13 @@ dispatch_cmds:
     la   $a0, inp_buf
     jal  handle_depositar
     bne  $v0, $zero, main_loop
+    
+    # conta_fechar-<CONTA6>-<DV>
+    la   $a0, inp_buf
+    jal  handle_conta_fechar
+    bne  $v0, $zero, main_loop
+
+
 
     # nada pegou
     la   $a0, msg_invalid
