@@ -2,11 +2,7 @@
 # extratos.asm - R5 com detalhes de transações (MARS 4.5)
 # comandos:  credito_extrato-<CONTA6>-<DV>
 #            debito_extrato-<CONTA6>-<DV>
-#
-# Depende de:
-#  - data.asm (símbolos globais abaixo)
-#  - transacoes.asm: formatar_centavos(a0=centavos) -> v0=ptr string
-#  - ops_util.asm: print_2dig / print_datahora (usa curr_* abaixo)
+# Dep.: data.asm, transacoes.asm (formatar_centavos), ops_util.asm (print_datahora)
 # ============================================================
 
 .data
@@ -16,8 +12,8 @@ str_cmd_extrato_credito:  .asciiz "credito_extrato-"
 msg_extrato_credito_hdr:  .asciiz "\n=== EXTRATO CREDITO ===\nData/Hora           Tipo        Valor (R$)\n------------------------------------------\n"
 msg_extrato_debito_hdr:   .asciiz "\n=== EXTRATO DEBITO ===\nData/Hora           Tipo        Valor (R$)\n------------------------------------------\n"
 
-msg_limite_disp:          .asciiz "Limite disponivel: R$ "
-msg_divida_atual:         .asciiz "Divida atual: R$ "
+msg_limite_disp:          .asciiz "Limite disponivel: "
+msg_divida_atual:         .asciiz "Divida atual: "
 msg_nl:                   .asciiz "\n"
 
 lbl_sep_cols:             .asciiz "  "
@@ -28,16 +24,6 @@ lbl_sem_mov:              .asciiz "(sem movimentacoes)\n"
 .text
 .globl handle_extrato_credito
 .globl handle_extrato_debito
-
-# Globais vindos de data.asm:
-# MAX_CLIENTS, TRANS_MAX
-# clientes_usado, clientes_conta, clientes_dv
-# clientes_limite_cent, clientes_devido_cent
-# trans_deb_head, trans_deb_count, trans_deb_wptr, trans_deb_vals
-# trans_cred_head, trans_cred_count, trans_cred_wptr, trans_cred_vals
-# curr_day, curr_mon, curr_year, curr_hour, curr_min, curr_sec
-# cc_buf_acc, msg_err_cli_inexist, msg_cc_badfmt
-# formatar_centavos (em transacoes.asm)
 
 # ------------------------------------------------------------
 # helper: procura cliente por conta(6) (em cc_buf_acc) + DV
@@ -60,7 +46,8 @@ ebc_loop:
     li    $t4, 7
     mul   $t4, $t0, $t4
     addu  $t3, $t3, $t4
-    move  $t5, $a0
+
+    move  $t5, $a0                    # usa o ponteiro recebido
     li    $t6, 0
 ebc_cmp6:
     lb    $t7, 0($t3)
@@ -79,12 +66,10 @@ ebc_cmp6:
     move  $v0, $t0
     jr    $ra
     nop
-
 ebc_next:
     addiu $t0, $t0, 1
     j     ebc_loop
     nop
-
 ebc_not_found:
     li    $v0, -1
     jr    $ra
@@ -95,18 +80,17 @@ ebc_not_found:
 # in: a0=tipoFlag (0=DEB, 1=CRED), a1=valor_centavos
 # ------------------------------------------------------------
 extr_print_linha:
-    addiu $sp, $sp, -24
-    sw    $ra, 20($sp)
-    sw    $s0, 16($sp)
-    sw    $s1, 12($sp)
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)
+    sw    $s1, 20($sp)
+    sw    $s2, 16($sp)     # tipo
+    sw    $s3, 12($sp)     # valor
 
-    # Data/Hora atual dos globais
-    lw    $a0, curr_day
-    lw    $a1, curr_mon
-    lw    $a2, curr_year
-    lw    $a3, curr_hour
-    lw    $s0, curr_min
-    lw    $s1, curr_sec
+    move  $s2, $a0
+    move  $s3, $a1
+
+    # Data/Hora atual (print_datahora usa curr_*)
     jal   print_datahora
     nop
 
@@ -116,18 +100,18 @@ extr_print_linha:
     syscall
 
     # Tipo
-    beq   $a0, $zero, .p_deb
+    beq   $s2, $zero, epl_deb
     nop
     li    $v0, 4
     la    $a0, lbl_tipo_cred
     syscall
-    j     .p_tipo_ok
+    j     epl_tipo_ok
     nop
-.p_deb:
+epl_deb:
     li    $v0, 4
     la    $a0, lbl_tipo_deb
     syscall
-.p_tipo_ok:
+epl_tipo_ok:
 
     # separador
     li    $v0, 4
@@ -135,7 +119,7 @@ extr_print_linha:
     syscall
 
     # Valor
-    move  $a0, $a1
+    move  $a0, $s3
     jal   formatar_centavos
     nop
     move  $a0, $v0
@@ -147,139 +131,160 @@ extr_print_linha:
     la    $a0, msg_nl
     syscall
 
-    lw    $s1, 12($sp)
-    lw    $s0, 16($sp)
-    lw    $ra, 20($sp)
-    addiu $sp, $sp, 24
+    lw    $s3, 12($sp)
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
     jr    $ra
     nop
 
 # ------------------------------------------------------------
-# extr_print_credito_do_cliente(a0 = idxCliente)
+# extr_print_credito_do_cliente(a0 = idxCliente)  (ordem: antigo -> novo)
 # ------------------------------------------------------------
 extr_print_credito_do_cliente:
-    addiu $sp, $sp, -24
-    sw    $ra, 20($sp)
-    sw    $s0, 16($sp)
-    sw    $s1, 12($sp)
-    sw    $s2,  8($sp)
+    addiu $sp, $sp, -40
+    sw    $ra, 36($sp)
+    sw    $s0, 32($sp)
+    sw    $s1, 28($sp)
+    sw    $s2, 24($sp)
+    sw    $s3, 20($sp)
+    sw    $s4, 16($sp)
+    sw    $s5, 12($sp)
 
-    move  $s0, $a0
+    move  $s0, $a0                 # idxCliente
 
-    # count / head
+    # carrega count e head
     sll   $t0, $s0, 2
     la    $t1, trans_cred_count
     addu  $t1, $t1, $t0
-    lw    $s1, 0($t1)                    # count (pode vir sujo)
+    lw    $s1, 0($t1)              # count
 
     la    $t2, trans_cred_head
     addu  $t2, $t2, $t0
-    lw    $s2, 0($t2)                    # head
+    lw    $s2, 0($t2)              # head (próxima escrita)
 
-    # ---------- SANITIZAÇÃO ----------
-    bltz  $s1, .cred_sem_mov             # count < 0 => nada
-    lw    $t9, TRANS_MAX                 # CAP
-    sltu  $t3, $t9, $s1                  # 1 se count > CAP
-    beq   $t3, $zero, .cred_count_ok
+    lw    $s3, TRANS_MAX           # CAP
+    bltz  $s1, c_sem_mov
+    sltu  $t3, $s3, $s1            # count > CAP ?
+    beq   $t3, $zero, c_cnt_ok
     nop
-    move  $s1, $t9                        # count = CAP se maior
-.cred_count_ok:
+    move  $s1, $s3
+c_cnt_ok:
     # head %= CAP
-    div   $s2, $t9
+    divu  $s2, $s3
     mfhi  $s2
-    beq   $s1, $zero, .cred_sem_mov
-    nop
-    # ----------------------------------
-
-    li    $t7, 0
-.cred_loop:
-    beq   $t7, $s1, .cred_fim
+    beq   $s1, $zero, c_sem_mov
     nop
 
-    # idx = (head + i) % CAP
-    addu  $t0, $s2, $t7
-    div   $t0, $t9
-    mfhi  $t0
+    # start = (head - count); se <0 soma CAP
+    subu  $s4, $s2, $s1
+    slt   $t4, $s4, $zero
+    beq   $t4, $zero, c_start_ok
+    nop
+    addu  $s4, $s4, $s3
+c_start_ok:
 
+    move  $s5, $zero               # i = 0
+c_loop:
+    beq   $s5, $s1, c_fim
+
+    # idx = (start + i); se >= CAP subtrai CAP
+    addu  $t0, $s4, $s5
+    sltu  $t1, $t0, $s3
+    bne   $t1, $zero, c_idx_ok
+    nop
+    subu  $t0, $t0, $s3
+c_idx_ok:
     # linear = idxCliente*CAP + idx
-    mul   $t2, $s0, $t9
+    mul   $t2, $s0, $s3
     addu  $t2, $t2, $t0
-
-    # byte offset = linear * 4
     sll   $t3, $t2, 2
 
     la    $t4, trans_cred_vals
     addu  $t4, $t4, $t3
-    lw    $t5, 0($t4)                     # valor
+    lw    $t5, 0($t4)              # valor
 
-    li    $a0, 1
+    li    $a0, 1                   # tipo = CRED
     move  $a1, $t5
     jal   extr_print_linha
+
+    addiu $s5, $s5, 1
+    j     c_loop
     nop
 
-    addiu $t7, $t7, 1
-    j     .cred_loop
-    nop
-
-.cred_sem_mov:
+c_sem_mov:
     li    $v0, 4
     la    $a0, lbl_sem_mov
     syscall
 
-.cred_fim:
-    lw    $s2,  8($sp)
-    lw    $s1, 12($sp)
-    lw    $s0, 16($sp)
-    lw    $ra, 20($sp)
-    addiu $sp, $sp, 24
+c_fim:
+    lw    $s5, 12($sp)
+    lw    $s4, 16($sp)
+    lw    $s3, 20($sp)
+    lw    $s2, 24($sp)
+    lw    $s1, 28($sp)
+    lw    $s0, 32($sp)
+    lw    $ra, 36($sp)
+    addiu $sp, $sp, 40
     jr    $ra
     nop
 
 # ------------------------------------------------------------
-# extr_print_debito_do_cliente(a0 = idxCliente)
+# extr_print_debito_do_cliente(a0 = idxCliente) (ordem: antigo -> novo)
 # ------------------------------------------------------------
 extr_print_debito_do_cliente:
-    addiu $sp, $sp, -24
-    sw    $ra, 20($sp)
-    sw    $s0, 16($sp)
-    sw    $s1, 12($sp)
-    sw    $s2,  8($sp)
+    addiu $sp, $sp, -40
+    sw    $ra, 36($sp)
+    sw    $s0, 32($sp)
+    sw    $s1, 28($sp)
+    sw    $s2, 24($sp)
+    sw    $s3, 20($sp)
+    sw    $s4, 16($sp)
+    sw    $s5, 12($sp)
 
     move  $s0, $a0
 
     sll   $t0, $s0, 2
     la    $t1, trans_deb_count
     addu  $t1, $t1, $t0
-    lw    $s1, 0($t1)                    # count
+    lw    $s1, 0($t1)              # count
 
     la    $t2, trans_deb_head
     addu  $t2, $t2, $t0
-    lw    $s2, 0($t2)                    # head
+    lw    $s2, 0($t2)              # head
 
-    # ---------- SANITIZAÇÃO ----------
-    bltz  $s1, .deb_sem_mov
-    lw    $t9, TRANS_MAX
-    sltu  $t3, $t9, $s1
-    beq   $t3, $zero, .deb_count_ok
+    lw    $s3, TRANS_MAX
+    bltz  $s1, d_sem_mov
+    sltu  $t3, $s3, $s1
+    beq   $t3, $zero, d_cnt_ok
     nop
-    move  $s1, $t9
-.deb_count_ok:
-    div   $s2, $t9
+    move  $s1, $s3
+d_cnt_ok:
+    divu  $s2, $s3
     mfhi  $s2
-    beq   $s1, $zero, .deb_sem_mov
-    nop
-    # ----------------------------------
-
-    li    $t7, 0
-.deb_loop:
-    beq   $t7, $s1, .deb_fim
+    beq   $s1, $zero, d_sem_mov
     nop
 
-    addu  $t0, $s2, $t7
-    div   $t0, $t9
-    mfhi  $t0                             # idx
+    subu  $s4, $s2, $s1
+    slt   $t4, $s4, $zero
+    beq   $t4, $zero, d_start_ok
+    nop
+    addu  $s4, $s4, $s3
+d_start_ok:
 
-    mul   $t2, $s0, $t9
+    move  $s5, $zero               # i = 0
+d_loop:
+    beq   $s5, $s1, d_fim
+
+    addu  $t0, $s4, $s5
+    sltu  $t1, $t0, $s3
+    bne   $t1, $zero, d_idx_ok
+    nop
+    subu  $t0, $t0, $s3
+d_idx_ok:
+    mul   $t2, $s0, $s3
     addu  $t2, $t2, $t0
     sll   $t3, $t2, 2
 
@@ -287,26 +292,28 @@ extr_print_debito_do_cliente:
     addu  $t4, $t4, $t3
     lw    $t5, 0($t4)
 
-    move  $a0, $zero
+    move  $a0, $zero               # tipo = DEB
     move  $a1, $t5
     jal   extr_print_linha
+
+    addiu $s5, $s5, 1
+    j     d_loop
     nop
 
-    addiu $t7, $t7, 1
-    j     .deb_loop
-    nop
-
-.deb_sem_mov:
+d_sem_mov:
     li    $v0, 4
     la    $a0, lbl_sem_mov
     syscall
 
-.deb_fim:
-    lw    $s2,  8($sp)
-    lw    $s1, 12($sp)
-    lw    $s0, 16($sp)
-    lw    $ra, 20($sp)
-    addiu $sp, $sp, 24
+d_fim:
+    lw    $s5, 12($sp)
+    lw    $s4, 16($sp)
+    lw    $s3, 20($sp)
+    lw    $s2, 24($sp)
+    lw    $s1, 28($sp)
+    lw    $s0, 32($sp)
+    lw    $ra, 36($sp)
+    addiu $sp, $sp, 40
     jr    $ra
     nop
 
@@ -373,8 +380,42 @@ hec_conta:
     addu  $t3, $t3, $t0
     lw    $t4, 0($t3)            # devido
 
-    subu  $t5, $t2, $t4          # disponivel
+    # saneia (não-negativo e múltiplo de 100)
+    bltz  $t2, hec_lim_zero
+    nop
+    li    $t6, 100
+    divu  $t2, $t6
+    mflo  $t7
+    mul   $t2, $t7, 100
+    j     hec_lim_ok
+    nop
+hec_lim_zero:
+    move  $t2, $zero
+hec_lim_ok:
 
+    bltz  $t4, hec_dev_zero
+    nop
+    li    $t6, 100
+    divu  $t4, $t6
+    mflo  $t7
+    mul   $t4, $t7, 100
+    j     hec_dev_ok
+    nop
+hec_dev_zero:
+    move  $t4, $zero
+hec_dev_ok:
+
+    move  $s2, $t4                # preserva dívida p/ impressão
+
+    # disponivel = max(limite - devido, 0)
+    subu  $t5, $t2, $t4
+    slt   $t6, $t5, $zero
+    beq   $t6, $zero, hec_disp_ok
+    nop
+    move  $t5, $zero
+hec_disp_ok:
+
+    # imprime limite disponível
     li    $v0, 4
     la    $a0, msg_limite_disp
     syscall
@@ -388,10 +429,11 @@ hec_conta:
     la    $a0, msg_nl
     syscall
 
+    # imprime dívida atual
     li    $v0, 4
     la    $a0, msg_divida_atual
     syscall
-    move  $a0, $t4
+    move  $a0, $s2
     jal   formatar_centavos
     nop
     move  $a0, $v0
@@ -401,6 +443,7 @@ hec_conta:
     la    $a0, msg_nl
     syscall
 
+    # lista transações (todas!)
     move  $a0, $s0
     jal   extr_print_credito_do_cliente
     nop
