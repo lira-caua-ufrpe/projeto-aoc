@@ -1,16 +1,17 @@
 # ============================================================
-# persist.asm — R10: salvar / carregar estado binário (MARS 4.5)
-# Usa syscalls 13(open), 14(read), 15(write), 16(close)
-# Arquivo: opcode_state.bin (diretório atual do MARS)
+# persist.asm — salvar e carregar estado binário (MARS 4.5)
+# Usa syscalls: 13=open, 14=read, 15=write, 16=close
+# Arquivo de persistência: "opcode_state.bin" (diretório atual do MARS)
+# R10 do projeto é usado para esta funcionalidade
 # ============================================================
 
 .data
-# --------- Config ---------
-state_filename:      .asciiz "opcode_state.bin"
+# --------- Configuração ---------
+state_filename:      .asciiz "opcode_state.bin"  # Nome do arquivo de persistência
 
-# header de 16 bytes: "OPCD" + versao(1) + reservado
+# Header de 16 bytes: "OPCD" + versão(1) + reservado
 persist_header:      .byte 'O','P','C','D', 0,0,0,1, 0,0,0,0, 0,0,0,0
-hdr_buf:             .space 16
+hdr_buf:             .space 16                  # Buffer temporário para o header
 
 .text
 .globl save_state
@@ -19,30 +20,32 @@ hdr_buf:             .space 16
 .globl read_block
 
 # ============================================================
-# write_block(a0=fd, a1=addr, a2=len) -> v0=1 ok; 0 fail
+# write_block(a0=fd, a1=addr, a2=len) -> v0=1 se ok, 0 se fail
+# Escreve len bytes do endereço addr no arquivo fd
 # ============================================================
 write_block:
+    # --- prólogo: salva registradores ---
     addiu $sp, $sp, -24
     sw    $ra, 20($sp)
     sw    $s0, 16($sp)
     sw    $s1, 12($sp)
     sw    $s2,  8($sp)
 
-    move  $s0, $a0
-    move  $s1, $a1
-    move  $s2, $a2
+    move  $s0, $a0    # fd
+    move  $s1, $a1    # addr
+    move  $s2, $a2    # len
 
 wb_loop:
-    beq   $s2, $zero, wb_ok
+    beq   $s2, $zero, wb_ok       # tudo escrito, sucesso
     move  $a0, $s0
     move  $a1, $s1
     move  $a2, $s2
-    li    $v0, 15          # write
+    li    $v0, 15                  # syscall write
     syscall
-    bltz  $v0, wb_fail
-    beq   $v0, $zero, wb_fail
-    subu  $s2, $s2, $v0
-    addu  $s1, $s1, $v0
+    bltz  $v0, wb_fail             # erro na escrita
+    beq   $v0, $zero, wb_fail      # nenhum byte escrito -> fail
+    subu  $s2, $s2, $v0            # decrementa bytes restantes
+    addu  $s1, $s1, $v0            # avança ponteiro do buffer
     j     wb_loop
 
 wb_ok:
@@ -50,9 +53,10 @@ wb_ok:
     j     wb_end
 
 wb_fail:
-    move  $v0, $zero
+    move  $v0, $zero               # retorna 0 em caso de falha
 
 wb_end:
+    # --- epílogo: restaura registradores ---
     lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
@@ -62,7 +66,8 @@ wb_end:
     nop
 
 # ============================================================
-# read_block(a0=fd, a1=addr, a2=len) -> v0=1 ok; 0 fail
+# read_block(a0=fd, a1=addr, a2=len) -> v0=1 se ok, 0 se fail
+# Lê len bytes do arquivo fd para o endereço addr
 # ============================================================
 read_block:
     addiu $sp, $sp, -24
@@ -71,21 +76,21 @@ read_block:
     sw    $s1, 12($sp)
     sw    $s2,  8($sp)
 
-    move  $s0, $a0
-    move  $s1, $a1
-    move  $s2, $a2
+    move  $s0, $a0    # fd
+    move  $s1, $a1    # addr
+    move  $s2, $a2    # len
 
 rb_loop:
-    beq   $s2, $zero, rb_ok
+    beq   $s2, $zero, rb_ok       # tudo lido, sucesso
     move  $a0, $s0
     move  $a1, $s1
     move  $a2, $s2
-    li    $v0, 14          # read
+    li    $v0, 14                  # syscall read
     syscall
-    bltz  $v0, rb_fail
-    beq   $v0, $zero, rb_fail
-    subu  $s2, $s2, $v0
-    addu  $s1, $s1, $v0
+    bltz  $v0, rb_fail             # erro na leitura
+    beq   $v0, $zero, rb_fail      # EOF inesperado -> fail
+    subu  $s2, $s2, $v0            # decrementa bytes restantes
+    addu  $s1, $s1, $v0            # avança ponteiro do buffer
     j     rb_loop
 
 rb_ok:
@@ -93,7 +98,7 @@ rb_ok:
     j     rb_end
 
 rb_fail:
-    move  $v0, $zero
+    move  $v0, $zero               # retorna 0 em caso de falha
 
 rb_end:
     lw    $s2,  8($sp)
@@ -105,30 +110,32 @@ rb_end:
     nop
 
 # ============================================================
-# save_state() -> v0=1 ok; 0 fail
+# save_state() -> v0=1 se ok, 0 se fail
+# Salva todo o estado do sistema no arquivo opcode_state.bin
 # ============================================================
 save_state:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
     sw    $s0, 24($sp)
 
-    # open write (cria/trunca)
+    # --- abre o arquivo (write, cria ou trunca) ---
     la    $a0, state_filename
     li    $a1, 1           # write
     li    $a2, 0
-    li    $v0, 13          # open
+    li    $v0, 13          # syscall open
     syscall
     bltz  $v0, ss_fail
-    move  $s0, $v0
+    move  $s0, $v0         # $s0 = fd
 
-    # header
+    # --- escreve header ---
     move  $a0, $s0
     la    $a1, persist_header
     li    $a2, 16
     jal   write_block
     beq   $v0, $zero, ss_close_fail
 
-    # ---------- Blocos (na mesma ordem para load) ----------
+    # --- escreve blocos de clientes e transações ---
+    # ordem deve ser a mesma para load_state
     # Clientes (bytes)
     move  $a0, $s0
     la    $a1, clientes_usado
@@ -160,7 +167,7 @@ save_state:
     jal   write_block
     beq   $v0, $zero, ss_close_fail
 
-    # Clientes (words->bytes)
+    # Clientes (palavras -> 4 bytes cada)
     move  $a0, $s0
     la    $a1, clientes_saldo_cent
     li    $a2, 200
@@ -217,7 +224,7 @@ save_state:
     jal   write_block
     beq   $v0, $zero, ss_close_fail
 
-    # Valores (2500 * 4 = 10000)
+    # Valores (2500 * 4 bytes = 10000)
     move  $a0, $s0
     la    $a1, trans_deb_vals
     li    $a2, 10000
@@ -261,7 +268,7 @@ save_state:
     jal   write_block
     beq   $v0, $zero, ss_close_fail
 
-    # close
+    # --- fecha arquivo ---
     move  $a0, $s0
     li    $v0, 16
     syscall
@@ -270,6 +277,7 @@ save_state:
     j     ss_end
 
 ss_close_fail:
+    # fecha mesmo em caso de erro
     move  $a0, $s0
     li    $v0, 16
     syscall
@@ -283,32 +291,32 @@ ss_end:
     addiu $sp, $sp, 32
     jr    $ra
     nop
-
 # ============================================================
-# load_state() -> v0=1 ok; 0 se não tinha arquivo / falhou
+# load_state() -> v0=1 se ok, 0 se arquivo não existe ou falhou
 # ============================================================
 load_state:
+    # --- prólogo: salvar registradores ---
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
     sw    $s0, 24($sp)
 
-    # open read
+    # --- abre arquivo para leitura ---
     la    $a0, state_filename
-    li    $a1, 0
+    li    $a1, 0           # modo read
     li    $a2, 0
-    li    $v0, 13
+    li    $v0, 13          # syscall open
     syscall
-    bltz  $v0, ls_fail
-    move  $s0, $v0
+    bltz  $v0, ls_fail     # se não abriu, retorna 0
+    move  $s0, $v0         # $s0 = fd
 
-    # header
+    # --- lê header ---
     move  $a0, $s0
     la    $a1, hdr_buf
     li    $a2, 16
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
-    # valida "OPCD"
+    # --- valida primeiro 4 bytes: "OPCD" ---
     la    $t0, hdr_buf
     lb    $t1, 0($t0)
     li    $t2, 'O'
@@ -323,7 +331,8 @@ load_state:
     li    $t2, 'D'
     bne   $t1, $t2, ls_close_fail
 
-    # ---------- Blocos (mesma ordem do save) ----------
+    # ---------- Blocos de dados (mesma ordem do save_state) ----------
+    # Clientes (bytes)
     move  $a0, $s0
     la    $a1, clientes_usado
     li    $a2, 50
@@ -354,6 +363,7 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
+    # Clientes (palavras/inteiros)
     move  $a0, $s0
     la    $a1, clientes_saldo_cent
     li    $a2, 200
@@ -372,6 +382,7 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
+    # Ring DEB meta
     move  $a0, $s0
     la    $a1, trans_deb_head
     li    $a2, 200
@@ -390,6 +401,7 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
+    # Ring CRED meta
     move  $a0, $s0
     la    $a1, trans_cred_head
     li    $a2, 200
@@ -408,6 +420,7 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
+    # Valores (2500 * 4 = 10000 bytes)
     move  $a0, $s0
     la    $a1, trans_deb_vals
     li    $a2, 10000
@@ -420,6 +433,7 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
+    # Data/hora e cronômetros
     move  $a0, $s0
     la    $a1, curr_day
     li    $a2, 24
@@ -450,23 +464,25 @@ load_state:
     jal   read_block
     beq   $v0, $zero, ls_close_fail
 
-    # close
+    # --- fecha arquivo ---
     move  $a0, $s0
     li    $v0, 16
     syscall
 
-    li    $v0, 1
+    li    $v0, 1               # sucesso
     j     ls_end
 
 ls_close_fail:
+    # fecha mesmo em caso de erro
     move  $a0, $s0
     li    $v0, 16
     syscall
 
 ls_fail:
-    move  $v0, $zero
+    move  $v0, $zero           # retorna 0
 
 ls_end:
+    # --- epílogo ---
     lw    $s0, 24($sp)
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
