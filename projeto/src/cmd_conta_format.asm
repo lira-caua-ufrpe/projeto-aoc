@@ -1,54 +1,55 @@
-# cmd_conta_format.asm — conta_format-<CONTA6>-<DV>
-# Zera meta e 50 valores de transações (débito/crédito) da conta informada.
-# Depende de: strcmp, strncmp, print_str, read_line e símbolos de data.asm.
+# cmd_conta_format.asm — handler para o comando "conta_format-<CONTA6>-<DV>"
+# Zera a meta e os 50 valores de transações (débito/crédito) da conta informada.
+# Depende de: strcmp, strncmp, print_str, read_line e símbolos definidos em data.asm.
 
         .text
         .globl handle_conta_format
 
 handle_conta_format:
+    # --- salvar registradores e reservar espaço na stack ---
     addiu $sp, $sp, -48
-    sw    $ra, 44($sp)
-    sw    $s0, 40($sp)
-    sw    $s1, 36($sp)
-    sw    $s2, 32($sp)
-    sw    $s3, 28($sp)
+    sw    $ra, 44($sp)   # salvar endereço de retorno
+    sw    $s0, 40($sp)   # salvar s0
+    sw    $s1, 36($sp)   # salvar s1
+    sw    $s2, 32($sp)   # salvar s2
+    sw    $s3, 28($sp)   # salvar s3
 
-    move  $s2, $a0                   # linha completa
+    move  $s2, $a0                   # $s2 aponta para a linha completa do comando
     la    $a1, str_cmd_conta_format
-    li    $a3, 13                    # "conta_format-" tem 13 chars
+    li    $a3, 13                    # comprimento da string "conta_format-"
     move  $a0, $s2
-    jal   strncmp
+    jal   strncmp                    # compara início da linha com "conta_format-"
     nop
-    bne   $v0, $zero, cfmt_notmine
+    bne   $v0, $zero, cfmt_notmine  # se não bate, comando não é deste handler
 
-    # ponteiro para XXXXXX-D
+    # --- ponteiro para parte "XXXXXX-DV" ---
     addiu $s1, $s2, 13
 
-    # --- copia 6 dígitos da conta para cc_buf_acc ---
+    # --- copiar 6 dígitos da conta para cc_buf_acc ---
     la    $t4, cc_buf_acc
     li    $t5, 6
 cfmt_copy6:
-    beq   $t5, $zero, cfmt_after6
-    lb    $t0, 0($s1)
+    beq   $t5, $zero, cfmt_after6    # terminou de copiar
+    lb    $t0, 0($s1)                # lê caractere
     li    $t1, 48
-    blt   $t0, $t1, cfmt_badfmt
+    blt   $t0, $t1, cfmt_badfmt      # se < '0', formato inválido
     li    $t1, 57
-    bgt   $t0, $t1, cfmt_badfmt
-    sb    $t0, 0($t4)
+    bgt   $t0, $t1, cfmt_badfmt      # se > '9', formato inválido
+    sb    $t0, 0($t4)                # armazena no buffer da conta
     addiu $t4, $t4, 1
     addiu $s1, $s1, 1
     addiu $t5, $t5, -1
     j     cfmt_copy6
 cfmt_after6:
-    sb    $zero, 0($t4)
+    sb    $zero, 0($t4)              # finaliza string
 
-    # hífen
+    # --- verifica hífen separando conta e DV ---
     lb    $t0, 0($s1)
     li    $t1, '-'
     bne   $t0, $t1, cfmt_badfmt
     addiu $s1, $s1, 1
 
-    # DV (1 dígito)
+    # --- lê DV (1 dígito) ---
     lb    $t0, 0($s1)
     li    $t1, 48
     blt   $t0, $t1, cfmt_badfmt
@@ -57,27 +58,27 @@ cfmt_after6:
     la    $t2, cc_buf_dv
     sb    $t0, 0($t2)
 
-    # --- procurar cliente por conta+dv ---
+    # --- procura cliente correspondente (conta+DV) ---
     move  $s0, $zero
     li    $t7, 50
 cfmt_find_loop:
-    beq   $s0, $t7, cfmt_notfound
+    beq   $s0, $t7, cfmt_notfound    # se chegar ao final, cliente não encontrado
 
-    # usado?
+    # verifica se posição está usada
     la    $t0, clientes_usado
     addu  $t0, $t0, $s0
     lb    $t1, 0($t0)
-    beq   $t1, $zero, cfmt_next_i
+    beq   $t1, $zero, cfmt_next_i    # se não usado, pula para próximo
 
-    # compara conta (i*7)
+    # compara conta
     la    $t2, clientes_conta
     sll   $t3, $s0, 3
-    subu  $t3, $t3, $s0          # i*7
+    subu  $t3, $t3, $s0              # calcula i*7
     addu  $a0, $t2, $t3
     la    $a1, cc_buf_acc
     jal   strcmp
     nop
-    bne   $v0, $zero, cfmt_next_i
+    bne   $v0, $zero, cfmt_next_i    # se diferente, próxima
 
     # compara DV
     la    $t4, clientes_dv
@@ -87,7 +88,7 @@ cfmt_find_loop:
     lb    $t6, 0($t6)
     bne   $t5, $t6, cfmt_next_i
 
-    # achou
+    # cliente encontrado
     j     cfmt_found
 cfmt_next_i:
     addiu $s0, $s0, 1
@@ -107,7 +108,7 @@ cfmt_badfmt:
     li    $v0, 1
     j     cfmt_ret
 
-# --- confirmação e limpeza ---
+# --- confirmação antes de zerar ---
 cfmt_found:
     la    $a0, msg_fmt_confirm1
     jal   print_str
@@ -131,7 +132,7 @@ cfmt_found:
     jal   print_str
     nop
 
-    # lê resposta
+    # lê resposta do usuário
     la    $a0, inp_buf
     li    $a1, 256
     jal   read_line
@@ -139,10 +140,11 @@ cfmt_found:
     la    $t0, inp_buf
     lb    $t1, 0($t0)
     li    $t2, 's'
-    beq   $t1, $t2, cfmt_do
+    beq   $t1, $t2, cfmt_do         # 's' confirma
     li    $t2, 'S'
-    beq   $t1, $t2, cfmt_do
+    beq   $t1, $t2, cfmt_do         # 'S' confirma
 
+    # cancelou
     la    $a0, msg_fmt_cancel
     jal   print_str
     nop
@@ -150,7 +152,7 @@ cfmt_found:
     j     cfmt_ret
 
 cfmt_do:
-    # zera meta (head/count/wptr) débito e crédito
+    # --- zera metas (head, count, wptr) de débito e crédito ---
     sll   $t8, $s0, 2
 
     la    $t0, trans_deb_head
@@ -173,7 +175,7 @@ cfmt_do:
     addu  $t0, $t0, $t8
     sw    $zero, 0($t0)
 
-    # zera 50 words dos valores p/ esse cliente (i*200 bytes)
+    # --- zera os 50 valores de transações para esse cliente ---
     sll   $t3, $s0, 5      # i*32
     sll   $t4, $s0, 4      # i*16
     addu  $t3, $t3, $t4    # i*48
@@ -181,6 +183,7 @@ cfmt_do:
     addu  $t3, $t3, $t4    # i*50
     sll   $t3, $t3, 2      # *4 -> bytes
 
+    # zera valores de débito
     la    $t0, trans_deb_vals
     addu  $t0, $t0, $t3
     li    $t1, 50
@@ -190,6 +193,7 @@ cfmt_zero_deb:
     addiu $t1, $t1, -1
     bgtz  $t1, cfmt_zero_deb
 
+    # zera valores de crédito
     la    $t0, trans_cred_vals
     addu  $t0, $t0, $t3
     li    $t1, 50
@@ -199,6 +203,7 @@ cfmt_zero_cred:
     addiu $t1, $t1, -1
     bgtz  $t1, cfmt_zero_cred
 
+    # imprime mensagem de sucesso
     la    $a0, msg_fmt_conta_ok
     jal   print_str
     nop
@@ -206,9 +211,10 @@ cfmt_zero_cred:
     j     cfmt_ret
 
 cfmt_notmine:
-    move  $v0, $zero
+    move  $v0, $zero                  # comando não é "conta_format"
 
 cfmt_ret:
+    # --- restaura registradores e retorna ---
     lw    $s3, 28($sp)
     lw    $s2, 32($sp)
     lw    $s1, 36($sp)
