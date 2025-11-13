@@ -1,6 +1,8 @@
 # main.asm — shell principal (MARS 4.5)
 
 # --- includes ---
+# importa módulos com dados, I/O, strings, tempo, operações de conta, finanças, transações,
+# extratos, utilitários, persistência e comandos específicos
 .include "data.asm"
 .include "io.asm"
 .include "strings.asm"
@@ -11,9 +13,8 @@
 .include "extratos.asm"
 .include "ops_util.asm"
 .include "persist.asm"        # R10: persistência (save/load)
-.include "cmd_persist.asm"   # <— NOVO: cmd_13/14/15
+.include "cmd_persist.asm"   # cmd_13/14/15
 .include "cmd_conta_format.asm"
-
 
 .text
 .globl main
@@ -22,33 +23,36 @@ main:
     # carrega estado salvo (se existir) logo no boot
     jal  load_state
 
-    # loop principal
+# ============================================================
+# loop principal
+# ============================================================
 main_loop:
-    # mantém relógio lógico ativo
+    # atualiza relógio lógico
     jal  tick_datetime
-    # R7: juros automáticos
+
+    # aplica juros automáticos nas contas
     jal  aplicar_juros_auto
 
-    # prompt
+    # imprime banner / prompt
     la   $a0, banner
     jal  print_str
 
-    # lê linha
+    # lê linha do usuário
     la   $a0, inp_buf
     li   $a1, 256
     jal  read_line
 
-    # trim à direita
+    # remove espaços/fim de linha
     la   $a0, inp_buf
     jal  strip_line_end
 
-    # exit?
+    # verifica comando de saída
     la   $a0, inp_buf
     la   $a1, str_exit
     jal  strcmp
     beq  $v0, $zero, do_exit
 
-    # help?
+    # verifica comando help
     la   $a0, inp_buf
     la   $a1, str_help
     jal  strcmp
@@ -57,106 +61,99 @@ main_loop:
     jal  print_str
     j    main_loop
 
+# ============================================================
+# despacho de comandos
+# ============================================================
 dispatch_cmds:
- # salvar (cmd_13)
+    # salvar estado (cmd_13)
     la   $a0, inp_buf
     jal  handle_cmd_salvar
     bne  $v0, $zero, main_loop
 
-    # recarregar (cmd_14)
+    # recarregar estado (cmd_14)
     la   $a0, inp_buf
     jal  handle_cmd_recarregar
     bne  $v0, $zero, main_loop
 
-    # formatar (cmd_15)
+    # formatar dados (cmd_15)
     la   $a0, inp_buf
     jal  handle_cmd_formatar
     bne  $v0, $zero, main_loop
     
-    # conta_cadastrar-<CPF>-<CONTA6>-<NOME>
+    # operações de conta e transações
     la   $a0, inp_buf
     jal  handle_conta_cadastrar
     bne  $v0, $zero, main_loop
 
-    # pagar_debito-<CONTA6>-<DV>-<VALORcent>
     la   $a0, inp_buf
     jal  handle_pagar_debito
     bne  $v0, $zero, main_loop
 
-    # pagar_credito-<CONTA6>-<DV>-<VALORcent>
     la   $a0, inp_buf
     jal  handle_pagar_credito
     bne  $v0, $zero, main_loop
 
-    # alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>
     la   $a0, inp_buf
     jal  handle_alterar_limite
     bne  $v0, $zero, main_loop
 
-    # dump_trans-cred-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_dump_trans_cred
     bne  $v0, $zero, main_loop
 
-    # dump_trans-deb-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_dump_trans_deb
     bne  $v0, $zero, main_loop
 
-    # datetime_set-DD/MM/AAAA- HH:MM:SS
     la   $a0, inp_buf
     jal  handle_datetime_set
     bne  $v0, $zero, main_loop
 
-    # datetime_show
     la   $a0, inp_buf
     jal  handle_datetime_show
     bne  $v0, $zero, main_loop
 
-    # debito_extrato-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_extrato_debito
     bne  $v0, $zero, main_loop
 
-    # credito_extrato-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_extrato_credito
     bne  $v0, $zero, main_loop
 
-    # pagar_fatura-<CONTA6>-<DV>-<VALOR>-<METHOD>
     la   $a0, inp_buf
     jal  handle_pagar_fatura
     bne  $v0, $zero, main_loop
 
-    # sacar-<CONTA6>-<DV>-<VALORcent>
     la   $a0, inp_buf
     jal  handle_sacar
     bne  $v0, $zero, main_loop
 
-    # depositar-<CONTA6>-<DV>-<VALORcent>
     la   $a0, inp_buf
     jal  handle_depositar
     bne  $v0, $zero, main_loop
 
-    # conta_fechar-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_conta_fechar
     bne  $v0, $zero, main_loop
     
-    # conta_format-<CONTA6>-<DV>
     la   $a0, inp_buf
     jal  handle_conta_format
     bne  $v0, $zero, main_loop
 
-    # nada pegou
+    # nenhum comando reconhecido
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop
 
+# ============================================================
+# finaliza execução
+# ============================================================
 do_exit:
-    # salva estado ANTES de sair
+    # salva estado antes de sair
     jal  save_state
     la   $a0, msg_bye
     jal  print_str
     li   $v0, 10        # exit
     syscall
+
