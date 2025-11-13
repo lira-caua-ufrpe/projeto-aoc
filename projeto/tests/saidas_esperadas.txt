@@ -1,12 +1,41 @@
-Comandos:
-Cliente cadastrado com sucesso. Numero da conta 765432-7
-Limite de credito insuficiente
-Cliente inexistente
-Limite nao pode ser menor que a divida atual
-Limite alterado com sucesso
-Pagamento no credito registrado
-Saldo insuficiente
-Cliente cadastrado com sucesso. Numero da conta 999999-1
-Ja existe conta neste CPF
-Numero da conta ja em uso
+Comandos disponiveis:
+  help                    - mostra esta ajuda
+  exit                    - encerra o programa (salva automatico)
+
+  conta_cadastrar-<CPF11>-<CONTA6>-<NOME>
+  conta_fechar-<CONTA6>-<DV>
+
+  depositar-<CONTA6>-<DV>-<VALORcent>
+  sacar-<CONTA6>-<DV>-<VALORcent>
+  pagar_debito-<CONTA6>-<DV>-<VALORcent>
+  pagar_credito-<CONTA6>-<DV>-<VALORcent>
+  pagar_fatura-<CONTA6>-<DV>-<VALORcent>
+  alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>
+
+  dump_trans-cred-<CONTA6>-<DV>
+  dump_trans-deb-<CONTA6>-<DV>
+  credito_extrato-<CONTA6>-<DV>
+  debito_extrato-<CONTA6>-<DV>
+
+  datetime_show
+  datetime_set-<DD>/<MM>/<AAAA>- <HH>:<MM>:<SS>
+
+  salvar       - grava o estado no arquivo
+  recarregar   - recarrega o estado do arquivo
+  formatar     - apaga todos os dados em memoria
+
+Cliente cadastrado com sucesso. Numero da conta 000001-<DV1>
+Cliente cadastrado com sucesso. Numero da conta 000002-<DV2>
+Deposito realizado
+Saque realizado
+Pagamento em credito registrado
+Pagamento em debito registrado
+Limite atualizado
+Pagamento realizado com sucesso!
+Dados salvos.
+Dados recarregados do arquivo.
+Estado limpo (clientes e transacoes apagados; nao salvou automaticamente).
+<DATA/HORA ATUAL ANTES>               ; (resultado de 'datetime_show' inicial)
+Data/hora configurada
+01/01/2025 10:00:00                   ; (resultado de 'datetime_show' após o set)
 Encerrando...
