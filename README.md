@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/ufrpe-logo.png" alt="UFRPE" width="120"/>
+  <img src="projeto-aoc/docs/ufrpe-logo.png" alt="UFRPE" width="120"/>
 </p>
 
 <h1 align="center">opcode-shell — Banco em MIPS/MARS</h1>
