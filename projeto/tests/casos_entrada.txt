@@ -1,13 +1,39 @@
 help
-conta_cadastrar-13153400466-765432-caua
-pagar_credito-765432-7-12000
-pagar_credito-765432-7-200000
-pagar_credito-765432-9-500
-alterar_limite-765432-7-10000
-alterar_limite-765432-7-200000
-pagar_credito-765432-7-1000
-pagar_debito-765432-7-5000
-conta_cadastrar-22222222222-999999-fulano
-conta_cadastrar-13153400466-123456-beltrano
-conta_cadastrar-11111111111-765432-sicrano
+recarregar
+datetime_set-13/11/2025- 12:00:00
+datetime_show
+
+conta_cadastrar-12345678901-100001-JOSE DA SILVA
+conta_cadastrar-23456789012-100002-MARIA LIMA
+conta_cadastrar-12345678901-100003-CPF REPETIDO
+conta_cadastrar-34567890123-100002-CONTA REPETIDA
+conta_cadastrar-111-100004-INVALIDO
+
+depositar-100001-<DV1>-250000
+depositar-100002-<DV2>-100000
+
+sacar-100001-<DV1>-50000
+sacar-100001-9-100
+
+pagar_credito-100001-<DV1>-30000
+pagar_credito-100001-<DV1>-200000
+
+alterar_limite-100001-<DV1>-200000
+pagar_credito-100001-<DV1>-180000
+pagar_credito-100001-<DV1>-50000
+
+credito_extrato-100001-<DV1>
+debito_extrato-100001-<DV1>
+dump_trans-cred-100001-<DV1>
+dump_trans-deb-100001-<DV1>
+
+pagar_fatura-100001-<DV1>-40000
+pagar_fatura-100001-<DV1>-999999
+
+conta_format-100001-<DV1>
+s
+
+conta_fechar-100001-<DV1>
+
+salvar
 exit
