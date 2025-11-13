@@ -1,4 +1,4 @@
-# io.asm â€” rotinas bÃ¡sicas de E/S via syscalls (terminal MARS)
+# io.asm — rotinas básicas de E/S via syscalls (terminal MARS)
 
 .text
 .globl print_str
@@ -35,7 +35,7 @@ read_line:
     move  $a0, $t0
     move  $a1, $t1
     li    $v0, 8          # read_string
-    syscall               # lÃª atÃ© (maxlen-1), termina com '\0'
+    syscall               # lê até (maxlen-1), termina com '\0'
 
     # varre para achar '\n' e contar len
     move  $t2, $t0        # cursor
@@ -44,14 +44,14 @@ RL_LOOP:
     lb    $t3, 0($t2)
     beq   $t3, $zero, RL_END     # fim da string
     beq   $t3, 10, RL_NEWLINE    # '\n' (ASCII 10)
-    addi  $v0, $v0, 1
-    addi  $t2, $t2, 1
+    addiu $v0, $v0, 1
+    addiu $t2, $t2, 1
     j     RL_LOOP
 
 RL_NEWLINE:
     # sobrescreve '\n' com '\0' e encerra
     sb    $zero, 0($t2)
-    # v0 jÃ¡ Ã© o len sem '\n'
+    # v0 já é o len sem '\n'
     j     RL_CLEANUP
 
 RL_END:
@@ -70,10 +70,10 @@ RL_CLEANUP:
 
 # ------------------------------------------------------------
 # strip_line_end(a0=buf) -> v0=len
-# Remove \n \r espaÃ§o e \t Ã  direita; retorna novo comprimento.
+# Remove \n \r espaço e \t à direita; retorna novo comprimento.
 # ------------------------------------------------------------
 strip_line_end:
-    beq  $a0, $zero, sle_empty
+    beq  $a0, $zero, sle_nullptr       # não tocar memória se ponteiro nulo
 
     move $t0, $a0              # t0 = ptr = buf
 
@@ -81,12 +81,12 @@ strip_line_end:
 sle_scan:
     lb   $t1, 0($t0)
     beq  $t1, $zero, sle_at_end
-    addi $t0, $t0, 1
+    addiu $t0, $t0, 1
     j    sle_scan
 
-# t0 aponta para o '\0' -> Ãºltimo Ã­ndice real Ã© t0-1
+# t0 aponta para o '\0' -> último índice real é t0-1
 sle_at_end:
-    addi $t0, $t0, -1
+    addiu $t0, $t0, -1
     blt  $t0, $a0, sle_empty
 
 # apaga enquanto for \n \r ' ' \t
@@ -103,7 +103,7 @@ sle_trim_loop:
     bne  $t1, $t2, sle_done
 sle_wipe:
     sb   $zero, 0($t0)
-    addi $t0, $t0, -1
+    addiu $t0, $t0, -1
     j    sle_trim_loop
 
 sle_done:
@@ -113,5 +113,9 @@ sle_done:
 
 sle_empty:
     sb   $zero, 0($a0)
+    move $v0, $zero
+    jr   $ra
+
+sle_nullptr:
     move $v0, $zero
     jr   $ra
