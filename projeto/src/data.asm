@@ -152,3 +152,41 @@ str_cmd_time_show: .asciiz "datetime_show"
 msg_time_set_ok:   .asciiz "Data/hora configurada\n"
 msg_time_badfmt:   .asciiz "Formato invalido (use DD/MM/AAAA- HH:MM:SS)\n"
 msg_time_range:    .asciiz "Valores fora de faixa\n"
+
+# ===================== R7: Juros automáticos =====================
+# 1% a cada 60 segundos. Vamos controlar por um relógio absoluto
+# em segundos e lembrar o último instante em que aplicamos juros.
+
+.data
+    .align 2
+
+    # --- Constantes de juros ---
+    .globl JUROS_PERIOD_SEC
+    .globl JUROS_RATE_NUM
+    .globl JUROS_RATE_DEN
+JUROS_PERIOD_SEC:   .word 60       # a cada 60s
+JUROS_RATE_NUM:     .word 1        # 1%  -> numerador
+JUROS_RATE_DEN:     .word 100      #       denominador
+
+    # --- Relógio absoluto (segundos desde o "boot" do app) ---
+    # Será incrementado pelo tick em time.asm
+    .globl curr_abssec
+curr_abssec:        .word 0
+
+    # --- Último instante em que os juros foram aplicados ---
+    # Em segundos absolutos (mesma base do curr_abssec)
+    .globl juros_last_abssec
+juros_last_abssec:  .word 0
+
+ # --- Gate de reentrada para rotina de juros (usado em ops_fin.asm) ---
+    .globl juros_gate
+juros_gate:          .word 0      # 0 = liberado; 1 = travado (ops_fin controla)
+
+    # --- Convenção de registro no ring buffer de crédito ---
+    # Juros serão inseridos em trans_cred_vals como VALOR NEGATIVO.
+    # Isso evita criar novo array de "tipo". O extrato imprimirá "JUROS"
+    # quando encontrar valor < 0 (e mostrará |valor|).
+    .globl JUROS_USA_VALOR_NEG
+JUROS_USA_VALOR_NEG: .word 1
+# ================================================================
+
