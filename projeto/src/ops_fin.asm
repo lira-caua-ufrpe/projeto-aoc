@@ -1,12 +1,13 @@
-# ops_fin.asm ï¿½ R2 (pagamentos) + R3 (registro de transaï¿½ï¿½es)
+# ops_fin.asm � R2 (pagamentos) + R3 (registro de transa��es) + R7 (juros)
 # Handlers:
 #  - pagar_debito-<CONTA6>-<DV>-<VALORcentavos>
 #  - pagar_credito-<CONTA6>-<DV>-<VALORcentavos>
 #  - alterar_limite-<CONTA6>-<DV>-<NOVO_LIMcentavos>
+#  - pagar_fatura-<CONTA6>-<DV>-<VALORcentavos>-<METHOD[S|E]>
+#  - sacar-<CONTA6>-<DV>-<VALORcentavos>
+#  - depositar-<CONTA6>-<DV>-<VALORcentavos>
 #
-# Regras R3: atï¿½ 50 trans/debito e 50 trans/credito por cliente (ring buffer).
-
-
+# Regras R3: at� 50 trans/debito e 50 trans/credito por cliente (ring buffer).
 
 .text
 .globl calc_off_i50k
@@ -21,6 +22,7 @@
 .globl handle_pagar_fatura
 .globl handle_sacar
 .globl handle_depositar
+.globl aplicar_juros_auto
 
 # ------------------------------------------------------------
 # Util: calcula offset 4 * ( i*50 + k )
@@ -29,14 +31,13 @@
 #   v0 = deslocamento em bytes (multiplo de 4)
 # ------------------------------------------------------------
 calc_off_i50k:
-    # t0 = i*50 = i*32 + i*16 + i*2
-    sll  $t0, $a0, 5       # i*32
-    sll  $t1, $a0, 4       # i*16
-    addu $t0, $t0, $t1     # i*48
-    sll  $t1, $a0, 1       # i*2
-    addu $t0, $t0, $t1     # i*50
-    addu $t0, $t0, $a1     # i*50 + k
-    sll  $v0, $t0, 2       # *4 bytes
+    sll  $t0, $a0, 5
+    sll  $t1, $a0, 4
+    addu $t0, $t0, $t1         # i*48
+    sll  $t1, $a0, 1
+    addu $t0, $t0, $t1         # i*50
+    addu $t0, $t0, $a1         # i*50 + k
+    sll  $v0, $t0, 2           # *4 bytes
     jr   $ra
     nop
 
@@ -113,7 +114,7 @@ pd_val_loop:
     j     pd_val_loop
     nop
 pd_val_end:
-    # normaliza valor para mï¿½ltiplo de 100
+    # normaliza valor para m�ltiplo de 100
     li    $t0, 100
     divu  $t8, $t0
     mflo  $t1
@@ -154,8 +155,10 @@ pd_cmp6:
     bne   $t2, $s1, pd_next_i
 
     # --- ENCONTROU i ---
+    move  $s0, $t1                 # guarda �ndice do cliente
+    sll   $t0, $s0, 2
+
     # saldo[i] >= valor ?
-    sll   $t0, $t1, 2
     la    $t2, clientes_saldo_cent
     addu  $t2, $t2, $t0
     lw    $t3, 0($t2)           # saldo
@@ -166,16 +169,17 @@ pd_cmp6:
     subu  $t3, $t3, $t8
     sw    $t3, 0($t2)
 
-    # ---- R3: registra dï¿½bito ----
+    # ---- R3: registra d�bito ----
     # head
     la    $t4, trans_deb_head
     addu  $t4, $t4, $t0         # t0 = i*4
     lw    $t5, 0($t4)           # head (0..49)
 
-    # slot
-    move  $a0, $t1              # i
+    # slot (i, head)
+    move  $a0, $s0              # i
     move  $a1, $t5              # head
     jal   calc_off_i50k
+    nop
     move  $t6, $v0              # offset em t6
 
     la    $t7, trans_deb_vals
@@ -190,7 +194,8 @@ pd_cmp6:
 pd_head_ok:
     sw    $t5, 0($t4)
 
-    # wptr = head
+    # wptr = head   (RECALC idx4 ap�s jal)
+    sll   $t0, $s0, 2
     la    $t7, trans_deb_wptr
     addu  $t7, $t7, $t0
     sw    $t5, 0($t7)
@@ -199,15 +204,14 @@ pd_head_ok:
     la    $t7, trans_deb_count
     addu  $t7, $t7, $t0
     lw    $t6, 0($t7)              # t6 = count atual (pode estar sujo)
-    bltz  $t6, pd_cnt_zero         # se <0 -> zera
+    bltz  $t6, pd_cnt_zero
     li    $t9, 50
-    sltu  $v1, $t6, $t9            # v1=1 se count < 50
-    bne   $v1, $zero, pd_cnt_ok    # se <50, ok; senï¿½o, zera
-    beq   $v1, $zero, pd_cnt_keep  # se >=50, mantém
+    sltu  $v1, $t6, $t9
+    bne   $v1, $zero, pd_cnt_ok
+    beq   $v1, $zero, pd_cnt_keep
 pd_cnt_zero:
     move  $t6, $zero
 pd_cnt_ok:
-    # agora count ï¿½ vï¿½lido; incrementa atï¿½ 50
     li    $t9, 50
     slt   $v1, $t6, $t9
     beq   $v1, $zero, pd_cnt_keep
@@ -215,11 +219,11 @@ pd_cnt_ok:
     sw    $t6, 0($t7)
 pd_cnt_keep:
 
-    # detalhado (dï¿½bito)
-    move  $a0, $t1          # ï¿½ndice do cliente (i)
-    li    $a1, 0            # 0 = dï¿½bito
-    la    $a2, cc_buf_acc   # conta do comando
-    move  $a3, $t8          # valor em centavos
+    # log detalhado (d�bito)
+    move  $a0, $s0
+    li    $a1, 0
+    la    $a2, cc_buf_acc
+    move  $a3, $t8
     jal   adicionar_transacao_detalhe
     nop
 
@@ -278,7 +282,7 @@ pd_epilogue:
 handle_pagar_credito:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)    # ï¿½ndice do cliente
+    sw    $s0, 24($sp)    # �ndice do cliente
     sw    $s1, 20($sp)    # DV
     sw    $s2, 16($sp)    # (livre)
 
@@ -296,7 +300,7 @@ pc_pref_loop:
     nop
 
 pc_pref_ok:
-    # conta (6 dï¿½gitos)
+    # conta (6 d�gitos)
     la    $t4, cc_buf_acc
     li    $t5, 0
 pc_acc_loop:
@@ -349,11 +353,11 @@ pc_val_end:
     li    $t0, 100
     divu  $t8, $t0
     mflo  $t1
-    mul   $t8, $t1, 100       # agora $t8 ï¿½ 20000, 50000, etc.
+    mul   $t8, $t1, 100
 
     # ===== procurar cliente =====
     lw    $t9, MAX_CLIENTS
-    li    $s0, 0              # s0 = ï¿½ndice
+    li    $s0, 0
 pc_find_loop:
     beq   $s0, $t9, pc_not_found
 
@@ -366,8 +370,8 @@ pc_find_loop:
     # compara conta(6)
     la    $t4, clientes_conta
     li    $t5, 7
-    mul   $t5, $s0, $t5       # s0 * 7
-    addu  $t4, $t4, $t5       # &clientes_conta[s0]
+    mul   $t5, $s0, $t5
+    addu  $t4, $t4, $t5
     la    $t6, cc_buf_acc
     li    $t7, 0
 pc_cmp6:
@@ -386,23 +390,22 @@ pc_cmp6:
     bne   $t2, $s1, pc_next_i
 
     # ======= ACHOU CLIENTE EM s0 =======
-    # base word do cliente = s0 * 4
     sll   $t0, $s0, 2
 
     # limite
     la    $t1, clientes_limite_cent
     addu  $t1, $t1, $t0
-    lw    $t2, 0($t1)           # t2 = limite
+    lw    $t2, 0($t1)
 
     # devido
     la    $t3, clientes_devido_cent
     addu  $t3, $t3, $t0
-    lw    $t4, 0($t3)           # t4 = devido
-    # normaliza dï¿½vida jï¿½ existente
+    lw    $t4, 0($t3)
+    # normaliza d�vida j� existente (m�ltiplo de 100)
     li    $t5, 100
     divu  $t4, $t5
     mflo  $t6
-    mul   $t4, $t6, 100         # mï¿½ltiplo de 100
+    mul   $t4, $t6, 100
 
     # checa limite: (limite - devido) >= valor ?
     subu  $t6, $t2, $t4
@@ -413,25 +416,24 @@ pc_cmp6:
     addu  $t4, $t4, $t8
     sw    $t4, 0($t3)
 
-    # ===== registrar transaï¿½ï¿½o de crï¿½dito =====
-    # bloco do cliente (200 bytes = 50*4)
-    li    $t1, 200
-    mul   $t2, $s0, $t1        # t2 = s0 * 200
-    la    $t3, trans_cred_vals
-    addu  $t3, $t3, $t2        # base do bloco
-
-    # head desse cliente
+    # ===== registrar transa��o de cr�dito =====
+    # head
     la    $t4, trans_cred_head
-    sll   $t5, $s0, 2
-    addu  $t4, $t4, $t5
+    addu  $t4, $t4, $t0
     lw    $t6, 0($t4)          # t6 = head (0..49)
 
-    # endereï¿½o do slot
-    sll   $t7, $t6, 2          # head * 4
-    addu  $t7, $t3, $t7
-    sw    $t8, 0($t7)          # grava valor
+    # endere�o do slot: (i, head)
+    move  $a0, $s0              # i
+    move  $a1, $t6              # head
+    jal   calc_off_i50k
+    nop
+    move  $t7, $v0
 
-    # atualiza head = (head+1)%50
+    la    $t1, trans_cred_vals
+    addu  $t1, $t1, $t7
+    sw    $t8, 0($t1)
+
+    # head = (head+1)%50
     addiu $t6, $t6, 1
     li    $t7, 50
     bne   $t6, $t7, pc_head_ok
@@ -439,24 +441,24 @@ pc_cmp6:
 pc_head_ok:
     sw    $t6, 0($t4)
 
-    # wptr = head
+    # wptr = head  (RECALC idx4 ap�s jal)
+    sll   $t0, $s0, 2
     la    $t7, trans_cred_wptr
-    addu  $t7, $t7, $t5
+    addu  $t7, $t7, $t0
     sw    $t6, 0($t7)
 
     # ===== SANITIZE count + min(count+1, 50) =====
     la    $t7, trans_cred_count
-    addu  $t7, $t7, $t5
+    addu  $t7, $t7, $t0
     lw    $t9, 0($t7)              # t9 = count atual (pode estar sujo)
-    bltz  $t9, pc_cnt_zero         # se <0 -> zera
+    bltz  $t9, pc_cnt_zero
     li    $s2, 50
-    sltu  $v1, $t9, $s2            # v1=1 se count < 50
-    bne   $v1, $zero, pc_cnt_ok    # se <50, ok; senï¿½o, zera
-    beq   $v1, $zero, pc_cnt_keep  # se >=50, mantém
+    sltu  $v1, $t9, $s2
+    bne   $v1, $zero, pc_cnt_ok
+    beq   $v1, $zero, pc_cnt_keep
 pc_cnt_zero:
     move  $t9, $zero
 pc_cnt_ok:
-    # agora count ï¿½ vï¿½lido; incrementa atï¿½ 50
     li    $s2, 50
     slt   $v1, $t9, $s2
     beq   $v1, $zero, pc_cnt_keep
@@ -464,11 +466,11 @@ pc_cnt_ok:
     sw    $t9, 0($t7)
 pc_cnt_keep:
 
-    # detalhado (crï¿½dito)
-    move  $a0, $s0          # ï¿½ndice do cliente
-    li    $a1, 1            # 1 = crï¿½dito
-    la    $a2, cc_buf_acc   # conta do comando
-    move  $a3, $t8          # valor em centavos
+    # log detalhado (cr�dito)
+    move  $a0, $s0
+    li    $a1, 1
+    la    $a2, cc_buf_acc
+    move  $a3, $t8
     jal   adicionar_transacao_detalhe
     nop
 
@@ -683,13 +685,12 @@ al_done:
     nop
 
 ################################################################
-# DEBUG R3: Dump de transaï¿½ï¿½es (CRï¿½DITO / Dï¿½BITO)
+# DEBUG R3: Dump de transa��es (CR�DITO / D�BITO)
 ################################################################
 
 .data
 dump_hdr_cred: .asciiz "LOG credito (50 posicoes, mais antigo -> mais novo)\n"
-dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)
-"
+dump_hdr_deb:  .asciiz "LOG debito  (50 posicoes, mais antigo -> mais novo)\n"
 
 # Aceita ambos os prefixos (evita mismatch com main/help)
 #  - "dump_cred-" e "dump_trans-cred-"
@@ -699,6 +700,7 @@ str_dump_trans_cred_local: .asciiz "dump_trans-cred-"
 str_dump_deb_local:        .asciiz "dump_deb-"
 str_dump_trans_deb_local:  .asciiz "dump_trans-deb-"
 
+.align 2
 .text
 
 # --------------------------------------------------------------
@@ -712,18 +714,16 @@ handle_dump_trans_credito:
     sw    $s2, 24($sp)
     sw    $s3, 20($sp)
 
-    move  $t8, $a0                  # salva ptr original
-    # tenta 1) dump_cred-  2) dump_trans-cred-
+    move  $t8, $a0
     move  $t0, $a0
     la    $t1, str_dump_cred_local
-    move  $t9, $zero                # 0 = estamos no 1o prefixo; 1 = já tentamos o alternativo
+    move  $t9, $zero
 
 dtc_pref:
     lb    $t2, 0($t1)
-    beq   $t2, $zero, dtc_pref_ok   # terminou prefixo -> ok
+    beq   $t2, $zero, dtc_pref_ok
     lb    $t3, 0($t0)
     beq   $t2, $t3, dtc_pref_adv
-    # mismatch -> se ainda não tentamos o alternativo, troca prefixo e recomeça
     bne   $t9, $zero, dtc_not_mine
     li    $t9, 1
     move  $t0, $t8
@@ -882,7 +882,6 @@ handle_dump_trans_debito:
     sw    $s3, 20($sp)
 
     move  $t8, $a0
-    # tenta 1) dump_deb-  2) dump_trans-deb-
     move  $t0, $a0
     la    $t1, str_dump_deb_local
     move  $t9, $zero
@@ -1050,17 +1049,11 @@ handle_dump_trans_cred:
 handle_dump_trans_deb:
     j handle_dump_trans_debito
     nop
-    
+
 # =============================================================
-# R7 - Juros autom�ticos (1% a cada 60s) e registro no ring CRED
-# Aplica somente quando curr_sec == 0 e uma �nica vez por minuto.
-# - Para cada cliente usado:
-#     se devido > 0: juros = devido/100 (1% arred. para baixo)
-#     se juros > 0: soma no devido e registra no ring de CRED
+# R7 - Juros autom�ticos (1% a cada 60s) e registro no ring CRED
 # =============================================================
 .text
-.globl aplicar_juros_auto
-
 aplicar_juros_auto:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
@@ -1070,29 +1063,28 @@ aplicar_juros_auto:
     sw    $s3, 12($sp)
     sw    $s4,  8($sp)
 
-    # dispara s� no segundo 0 e uma �nica vez por minuto
     lw    $t0, curr_sec
     bne   $t0, $zero, .sec_not_zero
     nop
     lw    $t1, juros_gate
-    bne   $t1, $zero, .done        # j� aplicou neste "segundo 0"
+    bne   $t1, $zero, .done
     li    $t1, 1
     sw    $t1, juros_gate
     j     .apply_all
     nop
 
 .sec_not_zero:
-    sw    $zero, juros_gate        # destrava quando n�o est� no segundo 0
+    sw    $zero, juros_gate
     j     .done
     nop
 
 .apply_all:
-    lw    $t9, MAX_CLIENTS         # N clientes
-    lw    $s4, TRANS_MAX           # CAP do ring (50)
+    lw    $t9, MAX_CLIENTS         # N
+    lw    $s4, TRANS_MAX           # CAP (50)
     li    $s0, 0                   # i = 0
 
 .loop_i:
-    beq   $s0, $t9, .done          # fim
+    beq   $s0, $t9, .done
 
     # if (!clientes_usado[i]) goto next
     la    $t2, clientes_usado
@@ -1104,21 +1096,20 @@ aplicar_juros_auto:
     sll   $t0, $s0, 2
     la    $t1, clientes_devido_cent
     addu  $t1, $t1, $t0
-    lw    $t4, 0($t1)              # t4 = devido (centavos)
-    blez  $t4, .next_i             # sem d�vida => pula
+    lw    $t4, 0($t1)              # devido (cent)
+    blez  $t4, .next_i
 
-    # juros = devido/100 (1%). Se cair em 0, n�o registra (evita "R$ 0,01" fantasma)
+    # juros = floor(devido/100). Se 0, n�o registra.
     li    $t5, 100
     divu  $t4, $t5
-    mflo  $t6                      # t6 = juros
+    mflo  $t6                      # juros
     beq   $t6, $zero, .next_i
 
     # devido += juros
     addu  $t4, $t4, $t6
     sw    $t4, 0($t1)
 
-    # ---------- registrar no ring de CRED ----------
-    # head,count
+    # ---- registrar no ring de CRED em head ----
     la    $t7, trans_cred_head
     addu  $t7, $t7, $t0
     lw    $s1, 0($t7)              # s1 = head
@@ -1127,36 +1118,35 @@ aplicar_juros_auto:
     addu  $t8, $t8, $t0
     lw    $s2, 0($t8)              # s2 = count
 
-    # tail = (head + count) % CAP
-    addu  $t3, $s1, $s2
-    divu  $t3, $s4
-    mfhi  $t3                      # t3 = tail
-
-    # linear = i*CAP + tail
-    mul   $t2, $s0, $s4
-    addu  $t2, $t2, $t3
-    sll   $t2, $t2, 2              # byte offset
+    # slot = (i, head)
+    move  $a0, $s0                 # i
+    move  $a1, $s1                 # head
+    jal   calc_off_i50k
+    nop
+    move  $t2, $v0                 # byte offset
 
     la    $a3, trans_cred_vals
     addu  $a3, $a3, $t2
-    sw    $t6, 0($a3)              # grava "juros" como transa��o CRED
+    sw    $t6, 0($a3)              # registra juros (positivo)
 
-    # atualizar count/head
-    sltu  $t5, $s2, $s4            # count < CAP ?
-    beq   $t5, $zero, .buf_full
-    nop
-    addiu $s2, $s2, 1
-    sw    $s2, 0($t8)
-    j     .next_i
-    nop
-
-.buf_full:
-    # overrun: anda o head
+    # head = (head+1)%CAP
     addiu $s1, $s1, 1
     divu  $s1, $s4
     mfhi  $s1
     sw    $s1, 0($t7)
-    # count permanece CAP
+
+    # wptr = head   (RECALC idx4 ap�s jal)
+    sll   $t0, $s0, 2
+    la    $t2, trans_cred_wptr
+    addu  $t2, $t2, $t0
+    sw    $s1, 0($t2)
+
+    # count = min(count+1, CAP)
+    sltu  $t5, $s2, $s4
+    beq   $t5, $zero, .next_i
+    nop
+    addiu $s2, $s2, 1
+    sw    $s2, 0($t8)
 
 .next_i:
     addiu $s0, $s0, 1
@@ -1166,21 +1156,21 @@ aplicar_juros_auto:
 .done:
     lw    $s4,  8($sp)
     lw    $s3, 12($sp)
+    lw    $s2, 16($sp)
+    lw    $s1, 20($sp)
+    lw    $s0, 24($sp)
+    lw    $ra, 28($sp)
+    addiu $sp, $sp, 32
+    jr    $ra
+    nop
 
 # ------------------------------------------------------------
 # handle_pagar_fatura
-# Comando: pagar_fatura-<CONTA6>-<DV>-<VALORcentavos>-<METHOD>
-# METHOD: 'S' = via saldo da conta | 'E' = pagamento externo
-# Regras:
-#  - Se valor > dÃ­vida: Falha (msg_err_valor_maior)
-#  - Se METHOD='S' e saldo < valor: Falha (msg_err_saldo_insuf)
-#  - Sucesso abate sempre da dÃ­vida; do saldo apenas se 'S'
 # ------------------------------------------------------------
 handle_pagar_fatura:
-    # --- PRÃ“LOGO (inline) ---
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)   # Ã­ndice do cliente
+    sw    $s0, 24($sp)   # �ndice do cliente
     sw    $s1, 20($sp)   # DV
     sw    $s2, 16($sp)   # METHOD
 
@@ -1189,21 +1179,21 @@ handle_pagar_fatura:
     la    $t1, str_cmd_pay_fatura
 pf_pref_loop:
     lb    $t2, 0($t1)
-    beq   $t2, $zero, pf_pref_ok        # terminou o prefixo -> ok
+    beq   $t2, $zero, pf_pref_ok
     lb    $t3, 0($t0)
-    bne   $t2, $t3, pf_not_mine         # nÃ£o Ã© este comando
+    bne   $t2, $t3, pf_not_mine
     addiu $t1, $t1, 1
     addiu $t0, $t0, 1
     j     pf_pref_loop
     nop
 pf_pref_ok:
-    # CONTA (6 dÃ­gitos)
+    # CONTA (6)
     la    $t4, cc_buf_acc
     li    $t5, 0
 pf_acc_loop:
     lb    $t6, 0($t0)
-    blt   $t6, 48, pf_badfmt            # < '0'
-    bgt   $t6, 57, pf_badfmt            # > '9'
+    blt   $t6, 48, pf_badfmt
+    bgt   $t6, 57, pf_badfmt
     sb    $t6, 0($t4)
     addiu $t4, $t4, 1
     addiu $t0, $t0, 1
@@ -1232,12 +1222,12 @@ pf_dv_ok:
     bne   $t6, $t7, pf_badfmt
     addiu $t0, $t0, 1
 
-    # VALOR (atÃ© o prÃ³ximo '-'): -> $t8
+    # VALOR (at� o pr�ximo '-'): -> $t8
     move  $t8, $zero
 pf_val_loop:
     lb    $t6, 0($t0)
-    beq   $t6, $zero, pf_badfmt          # precisa achar '-'
     beq   $t6, 45,   pf_val_end
+    beq   $t6, $zero, pf_badfmt
     blt   $t6, 48,   pf_badfmt
     bgt   $t6, 57,   pf_badfmt
     addiu $t6, $t6, -48
@@ -1247,7 +1237,7 @@ pf_val_loop:
     j     pf_val_loop
     nop
 pf_val_end:
-    # normaliza (mÃºltiplo de 100), igual aos outros handlers
+    # normaliza (m�ltiplo de 100)
     li    $t1, 100
     divu  $t8, $t1
     mflo  $t2
@@ -1264,7 +1254,7 @@ pf_val_end:
 pf_meth_ok:
     addiu $t0, $t0, 1
     lb    $t6, 0($t0)
-    bne   $t6, $zero, pf_badfmt          # nÃ£o pode ter lixo depois
+    bne   $t6, $zero, pf_badfmt
 
     # ===== procurar cliente por conta+DV =====
     lw    $t9, MAX_CLIENTS
@@ -1301,19 +1291,19 @@ pf_cmp6:
     bne   $t2, $s1, pf_next_i
 
     # ===== ACHOU s0 =====
-    sll   $t0, $s0, 2            # offset *4
+    sll   $t0, $s0, 2
 
     # devido atual
     la    $t1, clientes_devido_cent
     addu  $t1, $t1, $t0
-    lw    $t2, 0($t1)            # dÃ­vida em centavos
-    # normaliza dÃ­vida (mÃºltiplo de 100)
+    lw    $t2, 0($t1)
+    # normaliza d�vida (m�ltiplo de 100)
     li    $t3, 100
     divu  $t2, $t3
     mflo  $t4
     mul   $t2, $t4, 100
 
-    # valor nÃ£o pode exceder a dÃ­vida
+    # valor n�o pode exceder a d�vida
     sltu  $v1, $t2, $t8
     bne   $v1, $zero, pf_val_maior
 
@@ -1336,7 +1326,6 @@ pf_do_debt_only:
     subu  $t2, $t2, $t8
     sw    $t2, 0($t1)
 
-    # sucesso
     li    $v0, 4
     la    $a0, msg_pago_com_sucesso
     syscall
@@ -1385,7 +1374,6 @@ pf_not_mine:
     move  $v0, $zero
 
 pf_epilogue:
-    # --- EPÃLOGO (inline) ---
     lw    $s2, 16($sp)
     lw    $s1, 20($sp)
     lw    $s0, 24($sp)
@@ -1396,7 +1384,6 @@ pf_epilogue:
 
 # ------------------------------------------------------------
 # R8: sacar-<CONTA6>-<DV>-<VALORcentavos>
-#  - Decrementa saldo da conta corrente (se houver saldo)
 # ------------------------------------------------------------
 handle_sacar:
     addiu $sp, $sp, -32
@@ -1416,6 +1403,7 @@ hs_pref:
     addiu $t1, $t1, 1
     addiu $t0, $t0, 1
     j     hs_pref
+    nop
 
 hs_pref_ok:
     # conta (6)
@@ -1465,8 +1453,9 @@ hs_val:
     addu  $t8, $t8, $t6
     addiu $t0, $t0, 1
     j     hs_val
+    nop
 hs_val_end:
-    # normaliza centavos (consistente com R2)
+    # normaliza centavos
     li    $t0, 100
     divu  $t8, $t0
     mflo  $t1
@@ -1514,22 +1503,66 @@ hs_cmp6:
     subu  $t2, $t2, $t8
     sw    $t2, 0($t1)
 
-    # detalhado: tipo=0 (débito), conta atual, valor
+    # grava tamb�m no ring DEB (em head)
+    la    $t4, trans_deb_head
+    addu  $t4, $t4, $t0
+    lw    $t5, 0($t4)           # head
+    move  $a0, $s0
+    move  $a1, $t5
+    jal   calc_off_i50k
+    nop
+    move  $t6, $v0
+    la    $t7, trans_deb_vals
+    addu  $t7, $t7, $t6
+    sw    $t8, 0($t7)
+
+    addiu $t5, $t5, 1
+    li    $t6, 50
+    bne   $t5, $t6, hs_head_ok
+    move  $t5, $zero
+hs_head_ok:
+    sw    $t5, 0($t4)
+
+    # (RECALC idx4 ap�s jal)
+    sll   $t0, $s0, 2
+    la    $t7, trans_deb_wptr
+    addu  $t7, $t7, $t0
+    sw    $t5, 0($t7)
+    la    $t7, trans_deb_count
+    addu  $t7, $t7, $t0
+    lw    $t6, 0($t7)
+    bltz  $t6, hs_cnt_zero
+    li    $t9, 50
+    sltu  $v1, $t6, $t9
+    beq   $v1, $zero, hs_log_ok
+    addiu $t6, $t6, 1
+    sw    $t6, 0($t7)
+    j     hs_log_ok
+    nop
+hs_cnt_zero:
+    li    $t6, 1
+    sw    $t6, 0($t7)
+hs_log_ok:
+
+    # detalhado: tipo=0 (d�bito), conta atual, valor
     move  $a0, $s0
     li    $a1, 0
     la    $a2, cc_buf_acc
     move  $a3, $t8
     jal   adicionar_transacao_detalhe
+    nop
 
     li    $v0, 4
     la    $a0, msg_saque_ok
     syscall
     li    $v0, 1
     j     hs_done
+    nop
 
 hs_next:
     addiu $s0, $s0, 1
     j     hs_find
+    nop
 
 hs_not_found:
     li    $v0, 4
@@ -1537,6 +1570,7 @@ hs_not_found:
     syscall
     li    $v0, 1
     j     hs_done
+    nop
 
 hs_saldo_insuf:
     li    $v0, 4
@@ -1544,6 +1578,7 @@ hs_saldo_insuf:
     syscall
     li    $v0, 1
     j     hs_done
+    nop
 
 hs_badfmt:
     li    $v0, 4
@@ -1551,6 +1586,7 @@ hs_badfmt:
     syscall
     li    $v0, 1
     j     hs_done
+    nop
 
 hs_not_mine:
     move  $v0, $zero
@@ -1562,11 +1598,10 @@ hs_done:
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
     jr    $ra
-
+    nop
 
 # ------------------------------------------------------------
 # R8: depositar-<CONTA6>-<DV>-<VALORcentavos>
-#  - Incrementa saldo da conta corrente
 # ------------------------------------------------------------
 handle_depositar:
     addiu $sp, $sp, -32
@@ -1586,6 +1621,7 @@ hdp_pref:
     addiu $t1, $t1, 1
     addiu $t0, $t0, 1
     j     hdp_pref
+    nop
 
 hdp_pref_ok:
     # conta (6)
@@ -1635,6 +1671,7 @@ hdp_val:
     addu  $t8, $t8, $t6
     addiu $t0, $t0, 1
     j     hdp_val
+    nop
 hdp_val_end:
     # normaliza centavos
     li    $t0, 100
@@ -1681,22 +1718,66 @@ hdp_cmp6:
     addu  $t2, $t2, $t8
     sw    $t2, 0($t1)
 
-    # detalhado: tipo=1 (crédito), conta atual, valor
+    # grava tamb�m no ring CRED (em head)
+    la    $t4, trans_cred_head
+    addu  $t4, $t4, $t0
+    lw    $t5, 0($t4)           # head
+    move  $a0, $s0
+    move  $a1, $t5
+    jal   calc_off_i50k
+    nop
+    move  $t6, $v0
+    la    $t7, trans_cred_vals
+    addu  $t7, $t7, $t6
+    sw    $t8, 0($t7)
+
+    addiu $t5, $t5, 1
+    li    $t6, 50
+    bne   $t5, $t6, hdp_head_ok
+    move  $t5, $zero
+hdp_head_ok:
+    sw    $t5, 0($t4)
+
+    # (RECALC idx4 ap�s jal)
+    sll   $t0, $s0, 2
+    la    $t7, trans_cred_wptr
+    addu  $t7, $t7, $t0
+    sw    $t5, 0($t7)
+    la    $t7, trans_cred_count
+    addu  $t7, $t7, $t0
+    lw    $t6, 0($t7)
+    bltz  $t6, hdp_cnt_zero
+    li    $t9, 50
+    sltu  $v1, $t6, $t9
+    beq   $v1, $zero, hdp_log_ok
+    addiu $t6, $t6, 1
+    sw    $t6, 0($t7)
+    j     hdp_log_ok
+    nop
+hdp_cnt_zero:
+    li    $t6, 1
+    sw    $t6, 0($t7)
+hdp_log_ok:
+
+    # detalhado: tipo=1 (cr�dito), conta atual, valor
     move  $a0, $s0
     li    $a1, 1
     la    $a2, cc_buf_acc
     move  $a3, $t8
     jal   adicionar_transacao_detalhe
+    nop
 
     li    $v0, 4
     la    $a0, msg_dep_ok
     syscall
     li    $v0, 1
     j     hdp_done
+    nop
 
 hdp_next:
     addiu $s0, $s0, 1
     j     hdp_find
+    nop
 
 hdp_not_found:
     li    $v0, 4
@@ -1704,6 +1785,7 @@ hdp_not_found:
     syscall
     li    $v0, 1
     j     hdp_done
+    nop
 
 hdp_badfmt:
     li    $v0, 4
@@ -1711,6 +1793,7 @@ hdp_badfmt:
     syscall
     li    $v0, 1
     j     hdp_done
+    nop
 
 hdp_not_mine:
     move  $v0, $zero
@@ -1722,3 +1805,4 @@ hdp_done:
     lw    $ra, 28($sp)
     addiu $sp, $sp, 32
     jr    $ra
+    nop
