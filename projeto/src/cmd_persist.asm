@@ -1,6 +1,6 @@
-# cmd_persist.asm — comandos: salvar, recarregar, formatar
-# depende de: print_str, strcmp, save_state, load_state
-# e dos símbolos de data.asm (clientes_*, trans_*)
+# cmd_persist.asm — comandos de persistência: salvar, recarregar e formatar
+# Depende de: print_str, strcmp, save_state, load_state
+# e dos símbolos definidos em data.asm (clientes_*, trans_*)
 
 .text
 .globl handle_cmd_salvar
@@ -9,18 +9,18 @@
 .globl format_state
 .globl memclr
 
-# memclr(a0=addr, a1=len) -> zera len bytes
+# --- memclr(a0=addr, a1=len) -> zera len bytes a partir de addr ---
 memclr:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
     sw    $s0,  8($sp)
     sw    $s1,  4($sp)
 
-    move  $s0, $a0          # ptr
-    move  $s1, $a1          # len
+    move  $s0, $a0          # ponteiro base
+    move  $s1, $a1          # tamanho
 mc_loop:
-    blez  $s1, mc_end
-    sb    $zero, 0($s0)
+    blez  $s1, mc_end       # se len <= 0, fim
+    sb    $zero, 0($s0)     # zera byte
     addiu $s0, $s0, 1
     addiu $s1, $s1, -1
     j     mc_loop
@@ -32,12 +32,13 @@ mc_end:
     jr    $ra
     nop
 
-# format_state() -> zera clientes e transações (não mexe em data/hora)
+# --- format_state() -> zera todos os clientes e transações ---
+# Não altera data/hora, apenas reinicia buffers e valores
 format_state:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
 
-    # blocos de bytes
+    # limpa flags de uso e informações de clientes
     la    $a0, clientes_usado
     li    $a1, 50
     jal   memclr
@@ -58,7 +59,7 @@ format_state:
     li    $a1, 1650
     jal   memclr
 
-    # words (pode limpar em bytes sem problema)
+    # limpa saldos e limites
     la    $a0, clientes_saldo_cent
     li    $a1, 200
     jal   memclr
@@ -71,7 +72,7 @@ format_state:
     li    $a1, 200
     jal   memclr
 
-    # rings débito: meta + valores
+    # limpa rings de débito: metas e valores
     la    $a0, trans_deb_head
     li    $a1, 200
     jal   memclr
@@ -88,7 +89,7 @@ format_state:
     li    $a1, 10000
     jal   memclr
 
-    # rings crédito: meta + valores
+    # limpa rings de crédito: metas e valores
     la    $a0, trans_cred_head
     li    $a1, 200
     jal   memclr
@@ -110,7 +111,7 @@ format_state:
     jr    $ra
     nop
 
-# handle_cmd_salvar(a0=buf) -> v0=1 se tratou; 0 se não era
+# --- handle_cmd_salvar(a0=buf) -> v0=1 se tratou ---
 handle_cmd_salvar:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
@@ -119,11 +120,11 @@ handle_cmd_salvar:
     move  $s0, $a0
     la    $a1, str_salvar
     jal   strcmp
-    bne   $v0, $zero, hcs_notmine
+    bne   $v0, $zero, hcs_notmine  # comando não é "salvar"
 
-    # é "salvar"
+    # comando "salvar"
     jal   save_state
-    beq   $v0, $zero, hcs_fail
+    beq   $v0, $zero, hcs_fail      # falha ao salvar
     la    $a0, msg_salvo_ok
     jal   print_str
     li    $v0, 1
@@ -134,7 +135,7 @@ hcs_fail:
     li    $v0, 1
     j     hcs_end
 hcs_notmine:
-    move  $v0, $zero
+    move  $v0, $zero                # comando não é tratado
 hcs_end:
     lw    $s0,  8($sp)
     lw    $ra, 12($sp)
@@ -142,17 +143,17 @@ hcs_end:
     jr    $ra
     nop
 
-# handle_cmd_recarregar(a0=buf)
+# --- handle_cmd_recarregar(a0=buf) ---
 handle_cmd_recarregar:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
 
     la    $a1, str_recarregar
     jal   strcmp
-    bne   $v0, $zero, hcr_notmine
+    bne   $v0, $zero, hcr_notmine  # comando não é "recarregar"
 
     jal   load_state
-    beq   $v0, $zero, hcr_fail
+    beq   $v0, $zero, hcr_fail      # falha ao carregar
     la    $a0, msg_load_ok
     jal   print_str
     li    $v0, 1
@@ -170,16 +171,16 @@ hcr_end:
     jr    $ra
     nop
 
-# handle_cmd_formatar(a0=buf)
+# --- handle_cmd_formatar(a0=buf) ---
 handle_cmd_formatar:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
 
     la    $a1, str_formatar
     jal   strcmp
-    bne   $v0, $zero, hcf_notmine
+    bne   $v0, $zero, hcf_notmine  # comando não é "formatar"
 
-    jal   format_state
+    jal   format_state               # zera todos clientes e transações
     la    $a0, msg_fmt_ok
     jal   print_str
     li    $v0, 1
