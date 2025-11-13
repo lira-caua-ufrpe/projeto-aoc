@@ -49,7 +49,36 @@ cc_buf_dv:  .space 1   # 1 byte para o DV (um único caractere)
 # ---- Banner / textos do shell ----
 bank_name:  .asciiz "opcode"
 banner:     .asciiz "opcode-shell>> "
-help_txt:   .asciiz "Comandos:\n- help\n- exit\n- conta_cadastrar-<CPF>-<CONTA6>-<NOME>\n- pagar_debito-<CONTA6>-<DV>-<VALORcent>\n- pagar_credito-<CONTA6>-<DV>-<VALORcent>\n- alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>\n- dump_trans-cred-<CONTA6>-<DV>\n- dump_trans-deb-<CONTA6>-<DV>\n- datetime_set-DD/MM/AAAA- HH:MM:SS\n- datetime_show\n- debito_extrato-<CONTA6>-<DV>\n- credito_extrato-<CONTA6>-<DV>\n- sacar-<CONTA6>-<DV>-<VALORcent>\n- depositar-<CONTA6>-<DV>-<VALORcent>\n- pagar_fatura-<CONTA6>-<DV>-<VALORcent>-<METHOD[S|E]>\n"
+# --- HELP ---
+help_txt:
+    .ascii "Comandos disponiveis:\n"
+    .ascii "  help                    - mostra esta ajuda\n"
+    .ascii "  exit                    - encerra o programa (salva automatico)\n"
+    .ascii "\n"
+    .ascii "  conta_cadastrar-<CPF11>-<CONTA6>-<NOME>\n"
+    .ascii "  conta_fechar-<CONTA6>-<DV>\n"
+    .ascii "\n"
+    .ascii "  depositar-<CONTA6>-<DV>-<VALORcent>\n"
+    .ascii "  sacar-<CONTA6>-<DV>-<VALORcent>\n"
+    .ascii "  pagar_debito-<CONTA6>-<DV>-<VALORcent>\n"
+    .ascii "  pagar_credito-<CONTA6>-<DV>-<VALORcent>\n"
+    .ascii "  pagar_fatura-<CONTA6>-<DV>-<VALORcent>\n"
+    .ascii "  alterar_limite-<CONTA6>-<DV>-<NOVOLIMcent>\n"
+    .ascii "\n"
+    .ascii "  dump_trans-cred-<CONTA6>-<DV>\n"
+    .ascii "  dump_trans-deb-<CONTA6>-<DV>\n"
+    .ascii "  credito_extrato-<CONTA6>-<DV>\n"
+    .ascii "  debito_extrato-<CONTA6>-<DV>\n"
+    .ascii "\n"
+    .ascii "  datetime_show\n"
+    .ascii "  datetime_set-<DD>/<MM>/<AAAA>- <HH>:<MM>:<SS>\n"
+    .ascii "\n"
+    .ascii "  salvar       - grava o estado no arquivo\n"
+    .ascii "  recarregar   - recarrega o estado do arquivo\n"
+    .ascii "  formatar     - apaga todos os dados em memoria\n"
+    .byte 0
+
+
 msg_invalid:.asciiz "Comando invalido\n"
 msg_bye:    .asciiz "Encerrando...\n"
 
@@ -65,6 +94,11 @@ str_cmd_alt_limite:    .asciiz "alterar_limite-"
 str_cmd_pay_fatura:    .asciiz "pagar_fatura-"
 str_cmd_sacar:         .asciiz "sacar-"
 str_cmd_depositar:     .asciiz "depositar-"
+
+# --- comandos de persistência ---
+str_salvar:       .asciiz "salvar"
+str_recarregar:   .asciiz "recarregar"
+str_formatar:     .asciiz "formatar"
 
 # ---- Mensagens gerais ----
 msg_cc_ok:              .asciiz "Cliente cadastrado com sucesso. Numero da conta "
@@ -93,6 +127,12 @@ msg_err_saldo_devedor:   .asciiz "Falha: saldo devedor ainda nao quitado. Saldo 
 msg_err_limite_devido:   .asciiz "Falha: limite de credito devido. Limite de credito: R$ "
 msg_err_cpf_nao_cadastrado: .asciiz "Falha: CPF nao possui cadastro.\n"
 msg_sucesso_conta_fechada:  .asciiz "Conta fechada com sucesso!\n"
+
+msg_salvo_ok:     .asciiz "Dados salvos.\n"
+msg_salvo_fail:   .asciiz "Falha ao salvar.\n"
+msg_load_ok:      .asciiz "Dados recarregados do arquivo.\n"
+msg_load_fail:    .asciiz "Nao foi possivel recarregar (arquivo ausente ou erro).\n"
+msg_fmt_ok:       .asciiz "Estado limpo (clientes e transacoes apagados; nao salvou automaticamente).\n"
 
 # ==========================
 #   Estruturas dos clientes

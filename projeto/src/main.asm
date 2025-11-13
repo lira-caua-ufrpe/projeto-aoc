@@ -11,6 +11,7 @@
 .include "extratos.asm"
 .include "ops_util.asm"
 .include "persist.asm"        # R10: persistência (save/load)
+.include "cmd_persist.asm"   # <— NOVO: cmd_13/14/15
 
 .text
 .globl main
@@ -55,6 +56,21 @@ main_loop:
     j    main_loop
 
 dispatch_cmds:
+ # salvar (cmd_13)
+    la   $a0, inp_buf
+    jal  handle_cmd_salvar
+    bne  $v0, $zero, main_loop
+
+    # recarregar (cmd_14)
+    la   $a0, inp_buf
+    jal  handle_cmd_recarregar
+    bne  $v0, $zero, main_loop
+
+    # formatar (cmd_15)
+    la   $a0, inp_buf
+    jal  handle_cmd_formatar
+    bne  $v0, $zero, main_loop
+    
     # conta_cadastrar-<CPF>-<CONTA6>-<NOME>
     la   $a0, inp_buf
     jal  handle_conta_cadastrar
