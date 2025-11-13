@@ -276,5 +276,3 @@ conta\_fechar-123456-X
     Confirme se salvar foi chamado antes, e se opcode\_state.bin está no mesmo diretório do MARS.
 *   __Não consigo fechar conta__  
     Use os extratos para checar se saldo/dívida estão realmente zerados.
-
-Se você quiser, depois a gente monta uma tabelinha curtinha “Requisito do enunciado → comando/arquivo” pra colar no relatório ou nos slides.
