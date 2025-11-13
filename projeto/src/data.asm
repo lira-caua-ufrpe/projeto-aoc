@@ -1,5 +1,5 @@
 # data.asm – dados globais e constantes do projeto (R1..R4)
-
+#abc
         .data
 
 # ---- Exportações (usadas em outros arquivos) ----
