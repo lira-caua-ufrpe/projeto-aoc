@@ -1,6 +1,6 @@
-# main.asm — shell principal (MARS 4.5)
+# main.asm ï¿½ shell principal (MARS 4.5)
 
-# --- includes (use estes se você vai montar só este arquivo) ---
+# --- includes (use estes se vocï¿½ vai montar sï¿½ este arquivo) ---
 .include "data.asm"
 .include "io.asm"
 .include "strings.asm"
@@ -11,27 +11,31 @@
 .include "extratos.asm"
 .include "ops_util.asm"   # precisa prover print_datahora/print_2dig
 
+
+
+
 .text
 .globl main
 
 main:
     # loop principal
 main_loop:
-    # mantém relógio lógico ativo
+    # mantï¿½m relï¿½gio lï¿½gico ativo
     jal  tick_datetime
 
     # prompt
     la   $a0, banner
     jal  print_str
 
-    # lê linha
+    # lï¿½ linha
     la   $a0, inp_buf
     li   $a1, 256
     jal  read_line
 
-    # trim à direita
-    la   $a0, inp_buf
-    jal  strip_line_end
+# trim Ã  direita (remover \n ou espaÃ§os extras)
+la   $a0, inp_buf
+jal  strip_line_end
+
 
     # exit?
     la   $a0, inp_buf
@@ -99,10 +103,14 @@ dispatch_cmds:
     jal  handle_extrato_credito
     bne  $v0, $zero, main_loop
 
+    la   $a0, inp_buf
+    jal  handle_pagar_fatura
+    bne  $v0, $zero, main_loop
     # nada pegou
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop
+    
 
 do_exit:
     la   $a0, msg_bye
