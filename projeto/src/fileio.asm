@@ -1,5 +1,5 @@
 # ============================================================
-# fileio.asm â€“ salvar/recarregar usando syscalls 13..16
+# Funções SALVAR, RECARREGAR, FORMATAR
 # ============================================================
 .text
 .globl salvar_cmd, recarregar_cmd, formatar_cmd

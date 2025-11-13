@@ -10,12 +10,12 @@
 # print_str(a0=addr) -> imprime string '\0'-terminada (syscall 4)
 # ------------------------------------------------------------
 print_str:
-    beq   $a0, $zero, print_str_end
-    li    $v0, 4          # print_string
-    syscall
+    beq   $a0, $zero, print_str_end   # se ponteiro nulo, sai da função
+    li    $v0, 4                      # código da syscall para print_string
+    syscall                           # executa a syscall (imprime string)
 print_str_end:
-    jr    $ra
-    nop
+    jr    $ra                         # retorna
+    nop                               # atraso de pipeline
 
 # ------------------------------------------------------------
 # read_line(a0=buf, a1=maxlen) -> v0 = len (sem '\n')
@@ -23,7 +23,7 @@ print_str_end:
 # e retorna o tamanho (sem contar '\0').
 # ------------------------------------------------------------
 read_line:
-    # salva $ra, $t0-$t3
+    # salva registradores temporários e endereço de retorno na pilha
     addiu $sp, $sp, -20
     sw    $ra, 16($sp)
     sw    $t0, 12($sp)
@@ -32,45 +32,45 @@ read_line:
     sw    $t3,  0($sp)
 
     # chamada de leitura
-    move  $t0, $a0        # t0 = buf
-    move  $t1, $a1        # t1 = maxlen
-    move  $a0, $t0
-    move  $a1, $t1
-    li    $v0, 8          # read_string
-    syscall               # lê até (maxlen-1), termina com '\0'
+    move  $t0, $a0        # t0 = endereço do buffer
+    move  $t1, $a1        # t1 = tamanho máximo da leitura
+    move  $a0, $t0        # coloca buffer em a0 para syscall
+    move  $a1, $t1        # coloca tamanho em a1
+    li    $v0, 8          # código da syscall read_string
+    syscall               # lê string até ENTER (ou maxlen - 1)
 
-    # varre para achar '\n' e contar len
-    move  $t2, $t0        # cursor
-    move  $v0, $zero      # len
+    # varre para achar '\n' e contar o comprimento
+    move  $t2, $t0        # t2 = cursor que percorre o buffer
+    move  $v0, $zero      # v0 = contador de caracteres (len)
 RL_LOOP:
-    lb    $t3, 0($t2)
-    beq   $t3, $zero, RL_END     # fim da string
-    beq   $t3, 10, RL_NEWLINE    # '\n' (ASCII 10)
-    addiu $v0, $v0, 1
-    addiu $t2, $t2, 1
-    j     RL_LOOP
+    lb    $t3, 0($t2)                 # lê byte atual
+    beq   $t3, $zero, RL_END          # se '\0', fim da string
+    beq   $t3, 10, RL_NEWLINE         # se '\n' (ASCII 10), tratar separadamente
+    addiu $v0, $v0, 1                 # incrementa comprimento
+    addiu $t2, $t2, 1                 # avança ponteiro
+    j     RL_LOOP                     # repete o loop
     nop
 
 RL_NEWLINE:
-    # sobrescreve '\n' com '\0' e encerra
-    sb    $zero, 0($t2)
-    # v0 já é o len sem '\n'
+    # substitui '\n' por '\0' e encerra
+    sb    $zero, 0($t2)               # coloca fim de string
+    # v0 já contém o comprimento sem o '\n'
     j     RL_CLEANUP
     nop
 
 RL_END:
-    # terminou sem '\n'
+    # terminou sem encontrar '\n'
     nop
 
 RL_CLEANUP:
-    # restaura registradores
+    # restaura registradores salvos
     lw    $t3,  0($sp)
     lw    $t2,  4($sp)
     lw    $t1,  8($sp)
     lw    $t0, 12($sp)
     lw    $ra, 16($sp)
-    addiu $sp, $sp, 20
-    jr    $ra
+    addiu $sp, $sp, 20                # desfaz espaço da pilha
+    jr    $ra                         # retorna
     nop
 
 # ------------------------------------------------------------
@@ -78,54 +78,55 @@ RL_CLEANUP:
 # Remove \n \r espaço e \t à direita; retorna novo comprimento.
 # ------------------------------------------------------------
 strip_line_end:
-    beq   $a0, $zero, sle_nullptr       # não tocar memória se ponteiro nulo
+    beq   $a0, $zero, sle_nullptr     # se ponteiro nulo, retorna 0 sem tocar memória
 
-    move  $t0, $a0              # t0 = ptr = buf
+    move  $t0, $a0                    # t0 = ponteiro para início do buffer
 
-# encontra o '\0'
+# encontra o '\0' (fim da string)
 sle_scan:
-    lb    $t1, 0($t0)
-    beq   $t1, $zero, sle_at_end
-    addiu $t0, $t0, 1
-    j     sle_scan
+    lb    $t1, 0($t0)                 # lê byte atual
+    beq   $t1, $zero, sle_at_end      # se '\0', achou o fim
+    addiu $t0, $t0, 1                 # avança ponteiro
+    j     sle_scan                    # continua varrendo
     nop
 
-# t0 aponta para o '\0' -> último índice real é t0-1
+# t0 aponta para o '\0' -> último caractere real é t0-1
 sle_at_end:
-    addiu $t0, $t0, -1
-    blt   $t0, $a0, sle_empty
+    addiu $t0, $t0, -1                # volta uma posição
+    blt   $t0, $a0, sle_empty         # se string vazia, pula para sle_empty
 
-# apaga enquanto for \n \r ' ' \t
+# apaga enquanto for \n \r ' ' ou \t
 sle_trim_loop:
-    blt   $t0, $a0, sle_empty
-    lb    $t1, 0($t0)
-    li    $t2, 10              # '\n'
+    blt   $t0, $a0, sle_empty         # se chegou ao início, termina
+    lb    $t1, 0($t0)                 # lê caractere atual
+    li    $t2, 10                     # '\n'
     beq   $t1, $t2, sle_wipe
-    li    $t2, 13              # '\r'
+    li    $t2, 13                     # '\r'
     beq   $t1, $t2, sle_wipe
-    li    $t2, 32              # ' '
+    li    $t2, 32                     # ' '
     beq   $t1, $t2, sle_wipe
-    li    $t2, 9               # '\t'
-    bne   $t1, $t2, sle_done
+    li    $t2, 9                      # '\t'
+    bne   $t1, $t2, sle_done          # se diferente de \t, termina
 sle_wipe:
-    sb    $zero, 0($t0)
-    addiu $t0, $t0, -1
-    j     sle_trim_loop
+    sb    $zero, 0($t0)               # substitui caractere por '\0'
+    addiu $t0, $t0, -1                # anda uma posição para trás
+    j     sle_trim_loop               # repete limpeza
     nop
 
 sle_done:
-    subu  $v0, $t0, $a0
-    addiu $v0, $v0, 1
-    jr    $ra
+    subu  $v0, $t0, $a0               # calcula comprimento novo (t0 - início)
+    addiu $v0, $v0, 1                 # ajusta comprimento final
+    jr    $ra                         # retorna
     nop
 
 sle_empty:
-    sb    $zero, 0($a0)
-    move  $v0, $zero
+    sb    $zero, 0($a0)               # coloca fim de string no início
+    move  $v0, $zero                  # comprimento = 0
     jr    $ra
     nop
 
 sle_nullptr:
-    move  $v0, $zero
+    move  $v0, $zero                  # se ponteiro nulo, retorna 0
     jr    $ra
     nop
+
