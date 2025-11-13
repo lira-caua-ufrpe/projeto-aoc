@@ -1048,6 +1048,122 @@ handle_dump_trans_cred:
 handle_dump_trans_deb:
     j handle_dump_trans_debito
     nop
+    
+# =============================================================
+# R7 - Juros autom�ticos (1% a cada 60s) e registro no ring CRED
+# Aplica somente quando curr_sec == 0 e uma �nica vez por minuto.
+# - Para cada cliente usado:
+#     se devido > 0: juros = devido/100 (1% arred. para baixo)
+#     se juros > 0: soma no devido e registra no ring de CRED
+# =============================================================
+.text
+.globl aplicar_juros_auto
+
+aplicar_juros_auto:
+    addiu $sp, $sp, -32
+    sw    $ra, 28($sp)
+    sw    $s0, 24($sp)
+    sw    $s1, 20($sp)
+    sw    $s2, 16($sp)
+    sw    $s3, 12($sp)
+    sw    $s4,  8($sp)
+
+    # dispara s� no segundo 0 e uma �nica vez por minuto
+    lw    $t0, curr_sec
+    bne   $t0, $zero, .sec_not_zero
+    nop
+    lw    $t1, juros_gate
+    bne   $t1, $zero, .done        # j� aplicou neste "segundo 0"
+    li    $t1, 1
+    sw    $t1, juros_gate
+    j     .apply_all
+    nop
+
+.sec_not_zero:
+    sw    $zero, juros_gate        # destrava quando n�o est� no segundo 0
+    j     .done
+    nop
+
+.apply_all:
+    lw    $t9, MAX_CLIENTS         # N clientes
+    lw    $s4, TRANS_MAX           # CAP do ring (50)
+    li    $s0, 0                   # i = 0
+
+.loop_i:
+    beq   $s0, $t9, .done          # fim
+
+    # if (!clientes_usado[i]) goto next
+    la    $t2, clientes_usado
+    addu  $t2, $t2, $s0
+    lb    $t3, 0($t2)
+    beq   $t3, $zero, .next_i
+
+    # devido = clientes_devido_cent[i]
+    sll   $t0, $s0, 2
+    la    $t1, clientes_devido_cent
+    addu  $t1, $t1, $t0
+    lw    $t4, 0($t1)              # t4 = devido (centavos)
+    blez  $t4, .next_i             # sem d�vida => pula
+
+    # juros = devido/100 (1%). Se cair em 0, n�o registra (evita "R$ 0,01" fantasma)
+    li    $t5, 100
+    divu  $t4, $t5
+    mflo  $t6                      # t6 = juros
+    beq   $t6, $zero, .next_i
+
+    # devido += juros
+    addu  $t4, $t4, $t6
+    sw    $t4, 0($t1)
+
+    # ---------- registrar no ring de CRED ----------
+    # head,count
+    la    $t7, trans_cred_head
+    addu  $t7, $t7, $t0
+    lw    $s1, 0($t7)              # s1 = head
+
+    la    $t8, trans_cred_count
+    addu  $t8, $t8, $t0
+    lw    $s2, 0($t8)              # s2 = count
+
+    # tail = (head + count) % CAP
+    addu  $t3, $s1, $s2
+    divu  $t3, $s4
+    mfhi  $t3                      # t3 = tail
+
+    # linear = i*CAP + tail
+    mul   $t2, $s0, $s4
+    addu  $t2, $t2, $t3
+    sll   $t2, $t2, 2              # byte offset
+
+    la    $a3, trans_cred_vals
+    addu  $a3, $a3, $t2
+    sw    $t6, 0($a3)              # grava "juros" como transa��o CRED
+
+    # atualizar count/head
+    sltu  $t5, $s2, $s4            # count < CAP ?
+    beq   $t5, $zero, .buf_full
+    nop
+    addiu $s2, $s2, 1
+    sw    $s2, 0($t8)
+    j     .next_i
+    nop
+
+.buf_full:
+    # overrun: anda o head
+    addiu $s1, $s1, 1
+    divu  $s1, $s4
+    mfhi  $s1
+    sw    $s1, 0($t7)
+    # count permanece CAP
+
+.next_i:
+    addiu $s0, $s0, 1
+    j     .loop_i
+    nop
+
+.done:
+    lw    $s4,  8($sp)
+    lw    $s3, 12($sp)
 
 # ------------------------------------------------------------
 # handle_pagar_fatura

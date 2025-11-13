@@ -22,6 +22,9 @@ main:
 main_loop:
     # mantï¿½m relï¿½gio lï¿½gico ativo
     jal  tick_datetime
+    
+    # R7: aplicar juros automáticos (1% a cada 60s)
+    jal  aplicar_juros_auto
 
     # prompt
     la   $a0, banner
