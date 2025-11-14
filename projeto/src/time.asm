@@ -33,8 +33,8 @@
 # tempo no sistema não avance de forma irrealista.
 
         .data
-MS_PER_SEC:       .word 1000      # 1s l?gico = 1000 ms
-DELTA_CAP_SEC:    .word 5         # no m?x. 5s por chamada (evita saltos)
+MS_PER_SEC:       .word 1000      # 1s  = 1000 ms
+DELTA_CAP_SEC:    .word 5         # no maximo. 5s por chamada (evita saltos)
 
         .text
         .globl tick_datetime
@@ -69,18 +69,18 @@ tick_datetime:
     lw  $t2,0($t1)           # last_ms
     beq $t2,$zero, TD_INIT   # primeira chamada apos reset/set
 
-    # delta = now - last ; se wrap (now<last) s? atualiza last
+    # delta = now - last ; se wrap (now<last) se atualiza last
     subu $t3,$t0,$t2         # delta_ms
     sltu $t4,$t0,$t2
     bne  $t4,$zero, TD_SAVE_ONLY
 
     # ---------- clamp do delta ----------
     la   $t7,MS_PER_SEC
-    lw   $t7,0($t7)          # 1000
+    lw   $t7,0($t7)          
     la   $t8,DELTA_CAP_SEC
-    lw   $t8,0($t8)          # N
-    mul  $t9,$t7,$t8         # max_delta = 1000*N
-    sltu $a2,$t9,$t3         # a2=1 se delta > max
+    lw   $t8,0($t8)          
+    mul  $t9,$t7,$t8         
+    sltu $a2,$t9,$t3         
     beq  $a2,$zero, TD_CLAMP_OK
     move $t3,$t9
 TD_CLAMP_OK:
@@ -95,9 +95,9 @@ TD_CLAMP_OK:
 
     # q = total_ms / 1000 ; r = total_ms % 1000
     divu $t6,$t7
-    mflo $s0                 # q: segundos a adicionar
-    mfhi $t6                 # r: resto ms
-    sw   $t6,0($t5)          # ms_accum = r
+    mflo $s0                 
+    mfhi $t6                 
+    sw   $t6,0($t5)          
     beq  $s0,$zero, TD_SAVE_ONLY
 
 # ---------- adiciona q segundos com rollover ----------
