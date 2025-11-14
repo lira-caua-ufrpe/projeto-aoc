@@ -1,24 +1,24 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e Organização de Computadores — 2025.2
-# Avaliação: Projetos 1 (PE1) – 1a VA
+# Disciplina: Arquitetura e OrganizaÃ§Ã£o de Computadores â€” 2025.2
+# AvaliaÃ§Ã£o: Projetos 1 (PE1) â€“ 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Atividade: Lista de ExercÃ­cios â€“ QuestÃ£o 1 (string.h)
 # Arquivo: cmd_conta_format.asm
 # Equipe: OPCODE
-# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (horário da aula)
-# Apresentação: vídeo no ato da entrega
-# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: CauÃ£ Lira; SÃ©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (horÃ¡rio da aula)
+# ApresentaÃ§Ã£o: vÃ­deo no ato da entrega
+# DescriÃ§Ã£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# Convenções:
+# ConvenÃ§Ãµes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Temporários: $t0..$t9 | PC inicia em 'main'
-# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+#   - TemporÃ¡rios: $t0..$t9 | PC inicia em 'main'
+# ObservaÃ§Ã£o: Como em C, o comportamento de strcat com Ã¡reas sobrepostas Ã© indefinido.
 # ============================================================
 
 
@@ -28,17 +28,17 @@
 
 
 
-# cmd_conta_format.asm — handler para o comando "conta_format-<CONTA6>-<DV>"
-# Zera a meta e os 50 valores de transações (débito/crédito) da conta informada.
-# Depende de: strcmp, strncmp, print_str, read_line e símbolos definidos em data.asm.
+# cmd_conta_format.asm â€” handler para o comando "conta_format-<CONTA6>-<DV>"
+# Zera a meta e os 50 valores de transaÃ§Ãµes (dÃ©bito/crÃ©dito) da conta informada.
+# Depende de: strcmp, strncmp, print_str, read_line e sÃ­mbolos definidos em data.asm.
 
         .text
         .globl handle_conta_format
 
 handle_conta_format:
-    # --- salvar registradores e reservar espaço na stack ---
+    # --- salvar registradores e reservar espaÃ§o na stack ---
     addiu $sp, $sp, -48
-    sw    $ra, 44($sp)   # salvar endereço de retorno
+    sw    $ra, 44($sp)   # salvar endereÃ§o de retorno
     sw    $s0, 40($sp)   # salvar s0
     sw    $s1, 36($sp)   # salvar s1
     sw    $s2, 32($sp)   # salvar s2
@@ -48,23 +48,23 @@ handle_conta_format:
     la    $a1, str_cmd_conta_format
     li    $a3, 13                    # comprimento da string "conta_format-"
     move  $a0, $s2
-    jal   strncmp                    # compara início da linha com "conta_format-"
+    jal   strncmp                    # compara inÃ­cio da linha com "conta_format-"
     nop
-    bne   $v0, $zero, cfmt_notmine  # se não bate, comando não é deste handler
+    bne   $v0, $zero, cfmt_notmine  # se nÃ£o bate, comando nÃ£o Ã© deste handler
 
     # --- ponteiro para parte "XXXXXX-DV" ---
     addiu $s1, $s2, 13
 
-    # --- copiar 6 dígitos da conta para cc_buf_acc ---
+    # --- copiar 6 dÃ­gitos da conta para cc_buf_acc ---
     la    $t4, cc_buf_acc
     li    $t5, 6
 cfmt_copy6:
     beq   $t5, $zero, cfmt_after6    # terminou de copiar
-    lb    $t0, 0($s1)                # lê caractere
+    lb    $t0, 0($s1)                # lÃª caractere
     li    $t1, 48
-    blt   $t0, $t1, cfmt_badfmt      # se < '0', formato inválido
+    blt   $t0, $t1, cfmt_badfmt      # se < '0', formato invÃ¡lido
     li    $t1, 57
-    bgt   $t0, $t1, cfmt_badfmt      # se > '9', formato inválido
+    bgt   $t0, $t1, cfmt_badfmt      # se > '9', formato invÃ¡lido
     sb    $t0, 0($t4)                # armazena no buffer da conta
     addiu $t4, $t4, 1
     addiu $s1, $s1, 1
@@ -73,13 +73,13 @@ cfmt_copy6:
 cfmt_after6:
     sb    $zero, 0($t4)              # finaliza string
 
-    # --- verifica hífen separando conta e DV ---
+    # --- verifica hÃ­fen separando conta e DV ---
     lb    $t0, 0($s1)
     li    $t1, '-'
     bne   $t0, $t1, cfmt_badfmt
     addiu $s1, $s1, 1
 
-    # --- lê DV (1 dígito) ---
+    # --- lÃª DV (1 dÃ­gito) ---
     lb    $t0, 0($s1)
     li    $t1, 48
     blt   $t0, $t1, cfmt_badfmt
@@ -92,13 +92,13 @@ cfmt_after6:
     move  $s0, $zero
     li    $t7, 50
 cfmt_find_loop:
-    beq   $s0, $t7, cfmt_notfound    # se chegar ao final, cliente não encontrado
+    beq   $s0, $t7, cfmt_notfound    # se chegar ao final, cliente nÃ£o encontrado
 
-    # verifica se posição está usada
+    # verifica se posiÃ§Ã£o estÃ¡ usada
     la    $t0, clientes_usado
     addu  $t0, $t0, $s0
     lb    $t1, 0($t0)
-    beq   $t1, $zero, cfmt_next_i    # se não usado, pula para próximo
+    beq   $t1, $zero, cfmt_next_i    # se nÃ£o usado, pula para prÃ³ximo
 
     # compara conta
     la    $t2, clientes_conta
@@ -108,7 +108,7 @@ cfmt_find_loop:
     la    $a1, cc_buf_acc
     jal   strcmp
     nop
-    bne   $v0, $zero, cfmt_next_i    # se diferente, próxima
+    bne   $v0, $zero, cfmt_next_i    # se diferente, prÃ³xima
 
     # compara DV
     la    $t4, clientes_dv
@@ -138,7 +138,7 @@ cfmt_badfmt:
     li    $v0, 1
     j     cfmt_ret
 
-# --- confirmação antes de zerar ---
+# --- confirmaÃ§Ã£o antes de zerar ---
 cfmt_found:
     la    $a0, msg_fmt_confirm1
     jal   print_str
@@ -162,7 +162,7 @@ cfmt_found:
     jal   print_str
     nop
 
-    # lê resposta do usuário
+    # lÃª resposta do usuÃ¡rio
     la    $a0, inp_buf
     li    $a1, 256
     jal   read_line
@@ -182,7 +182,7 @@ cfmt_found:
     j     cfmt_ret
 
 cfmt_do:
-    # --- zera metas (head, count, wptr) de débito e crédito ---
+    # --- zera metas (head, count, wptr) de dÃ©bito e crÃ©dito ---
     sll   $t8, $s0, 2
 
     la    $t0, trans_deb_head
@@ -205,7 +205,7 @@ cfmt_do:
     addu  $t0, $t0, $t8
     sw    $zero, 0($t0)
 
-    # --- zera os 50 valores de transações para esse cliente ---
+    # --- zera os 50 valores de transaÃ§Ãµes para esse cliente ---
     sll   $t3, $s0, 5      # i*32
     sll   $t4, $s0, 4      # i*16
     addu  $t3, $t3, $t4    # i*48
@@ -213,7 +213,7 @@ cfmt_do:
     addu  $t3, $t3, $t4    # i*50
     sll   $t3, $t3, 2      # *4 -> bytes
 
-    # zera valores de débito
+    # zera valores de dÃ©bito
     la    $t0, trans_deb_vals
     addu  $t0, $t0, $t3
     li    $t1, 50
@@ -223,7 +223,7 @@ cfmt_zero_deb:
     addiu $t1, $t1, -1
     bgtz  $t1, cfmt_zero_deb
 
-    # zera valores de crédito
+    # zera valores de crÃ©dito
     la    $t0, trans_cred_vals
     addu  $t0, $t0, $t3
     li    $t1, 50
@@ -241,7 +241,7 @@ cfmt_zero_cred:
     j     cfmt_ret
 
 cfmt_notmine:
-    move  $v0, $zero                  # comando não é "conta_format"
+    move  $v0, $zero                  # comando nÃ£o Ã© "conta_format"
 
 cfmt_ret:
     # --- restaura registradores e retorna ---
