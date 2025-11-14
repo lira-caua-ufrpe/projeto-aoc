@@ -1,33 +1,33 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e OrganizaÁ„o de Computadores ó 2025.2
-# AvaliaÁ„o: Projetos 1 (PE1) ñ 1a VA
+# Disciplina: Arquitetura e Organiza√ß√£o de Computadores ‚Äî 2025.2
+# Avalia√ß√£o: Projetos 1 (PE1) ‚Äì 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de ExercÌcios ñ Quest„o 1 (string.h)
+# Atividade: Lista de Exerc√≠cios ‚Äì Quest√£o 1 (string.h)
 # Arquivo: cmd_persist.asm
 # Equipe: OPCODE
-# Integrantes: Cau„ Lira; SÈrgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (hor·rio da aula)
-# ApresentaÁ„o: vÌdeo no ato da entrega
-# DescriÁ„o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: Cau√£ Lira; S√©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (hor√°rio da aula)
+# Apresenta√ß√£o: v√≠deo no ato da entrega
+# Descri√ß√£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# ConvenÁıes:
+# Conven√ß√µes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Tempor·rios: $t0..$t9 | PC inicia em 'main'
-# ObservaÁ„o: Como em C, o comportamento de strcat com ·reas sobrepostas È indefinido.
+#   - Tempor√°rios: $t0..$t9 | PC inicia em 'main'
+# Observa√ß√£o: Como em C, o comportamento de strcat com √°reas sobrepostas √© indefinido.
 # ============================================================
 
 
 
 
 
-# cmd_persist.asm ó comandos de persistÍncia: salvar, recarregar e formatar
+# cmd_persist.asm ‚Äî comandos de persist√™ncia: salvar, recarregar e formatar
 # Depende de: print_str, strcmp, save_state, load_state
-# e dos sÌmbolos definidos em data.asm (clientes_*, trans_*)
+# e dos s√≠mbolos definidos em data.asm (clientes_*, trans_*)
 
 .text
 .globl handle_cmd_salvar
@@ -59,13 +59,13 @@ mc_end:
     jr    $ra
     nop
 
-# --- format_state() -> zera todos os clientes e transaÁıes ---
-# N„o altera data/hora, apenas reinicia buffers e valores
+# --- format_state() -> zera todos os clientes e transa√ß√µes ---
+# N√£o altera data/hora, apenas reinicia buffers e valores
 format_state:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
 
-    # limpa flags de uso e informaÁıes de clientes
+    # limpa flags de uso e informa√ß√µes de clientes
     la    $a0, clientes_usado
     li    $a1, 50
     jal   memclr
@@ -99,7 +99,7 @@ format_state:
     li    $a1, 200
     jal   memclr
 
-    # limpa rings de dÈbito: metas e valores
+    # limpa rings de d√©bito: metas e valores
     la    $a0, trans_deb_head
     li    $a1, 200
     jal   memclr
@@ -116,7 +116,7 @@ format_state:
     li    $a1, 10000
     jal   memclr
 
-    # limpa rings de crÈdito: metas e valores
+    # limpa rings de cr√©dito: metas e valores
     la    $a0, trans_cred_head
     li    $a1, 200
     jal   memclr
@@ -147,7 +147,7 @@ handle_cmd_salvar:
     move  $s0, $a0
     la    $a1, str_salvar
     jal   strcmp
-    bne   $v0, $zero, hcs_notmine  # comando n„o È "salvar"
+    bne   $v0, $zero, hcs_notmine  # comando n√£o √© "salvar"
 
     # comando "salvar"
     jal   save_state
@@ -162,7 +162,7 @@ hcs_fail:
     li    $v0, 1
     j     hcs_end
 hcs_notmine:
-    move  $v0, $zero                # comando n„o È tratado
+    move  $v0, $zero                # comando n√£o √© tratado
 hcs_end:
     lw    $s0,  8($sp)
     lw    $ra, 12($sp)
@@ -177,7 +177,7 @@ handle_cmd_recarregar:
 
     la    $a1, str_recarregar
     jal   strcmp
-    bne   $v0, $zero, hcr_notmine  # comando n„o È "recarregar"
+    bne   $v0, $zero, hcr_notmine  # comando n√£o √© "recarregar"
 
     jal   load_state
     beq   $v0, $zero, hcr_fail      # falha ao carregar
@@ -205,9 +205,9 @@ handle_cmd_formatar:
 
     la    $a1, str_formatar
     jal   strcmp
-    bne   $v0, $zero, hcf_notmine  # comando n„o È "formatar"
+    bne   $v0, $zero, hcf_notmine  # comando n√£o √© "formatar"
 
-    jal   format_state               # zera todos clientes e transaÁıes
+    jal   format_state               # zera todos clientes e transa√ß√µes
     la    $a0, msg_fmt_ok
     jal   print_str
     li    $v0, 1
