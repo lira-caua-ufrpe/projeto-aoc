@@ -1,16 +1,32 @@
-# strings.asm — utilitários básicos de strings
-# strcmp(a0=s1, a1=s2) -> v0: 0 se iguais; <0 se s1<s2; >0 se s1>s2
-# strncmp(a0=s1, a1=s2, a3=n) -> idem, até n chars
-# strcpy(a0=src, a1=dst) -> v0=dst (copia incluindo '\0')
-# is_all_digits_fixed(a0=addr, a1=len) -> v0=1 se todos '0'..'9', senão 0
-
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: strings.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
 .text
 .globl strcmp
 .globl strncmp
 .globl strcpy
 .globl is_all_digits_fixed
 
-# strcmp ------------------------------------------------------
+
 strcmp:
 sc_loop:
     lb   $t0, 0($a0)        # c1
@@ -27,7 +43,7 @@ sc_diff:
     subu $v0, $t0, $t1
     jr   $ra
 
-# strncmp -----------------------------------------------------
+
 strncmp:
     move $t2, $a3           # n
     beq  $t2, $zero, streq0
@@ -60,13 +76,13 @@ cpy_loop:
 
 # is_all_digits_fixed ----------------------------------------
 is_all_digits_fixed:
-    move $t0, $a0           # ptr
+    move $t0, $a0           
     move $t1, $a1           # len
     blez $t1, alldig_yes
 alldig_loop:
     lb   $t2, 0($t0)
-    blt  $t2, 48, alldig_no     # '0'
-    bgt  $t2, 57, alldig_no     # '9'
+    blt  $t2, 48, alldig_no     
+    bgt  $t2, 57, alldig_no     
     addiu $t0, $t0, 1
     addiu $t1, $t1, -1
     bgtz $t1, alldig_loop

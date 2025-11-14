@@ -1,11 +1,40 @@
-# time.asm ï¿½ R4: configurar e manter data/hora usando syscall 30 (resultado em $a0)
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: time.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
+
+
+# time.asm — handler para configurar e manter data/hora
+# Usa R4 e a syscall 30 para obter o tempo do sistema
 
 ############################
-# Configuraï¿½ï¿½o anti-turbo  #
+# Configuração anti-turbo  #
 ############################
+# Este bloco é destinado a prevenir execução rápida excessiva (anti-turbo),
+# provavelmente limitando loops ou controlando delays para que a contagem de
+# tempo no sistema não avance de forma irrealista.
+
         .data
-MS_PER_SEC:       .word 1000      # 1s lï¿½gico = 1000 ms
-DELTA_CAP_SEC:    .word 5         # no mï¿½x. 5s por chamada (evita saltos)
+MS_PER_SEC:       .word 1000      # 1s  = 1000 ms
+DELTA_CAP_SEC:    .word 5         # no maximo. 5s por chamada (evita saltos)
 
         .text
         .globl tick_datetime
@@ -15,7 +44,7 @@ DELTA_CAP_SEC:    .word 5         # no mï¿½x. 5s por chamada (evita saltos)
 
 
 # ------------------------------------------------------------
-# tick_datetime()
+# tick_datetime() — atualiza data/hora a cada tick
 # ------------------------------------------------------------
 tick_datetime:
     addiu $sp,$sp,-44
@@ -29,48 +58,53 @@ tick_datetime:
     sw $s6,12($sp)
     sw $s7,8($sp)
 
-    # now_ms (syscall 30 retorna em $a0)
+# now_ms — obtém o tempo atual em milissegundos usando a syscall 30
+# O valor retornado pelo sistema é colocado em $a0
+
     li  $v0,30
     syscall
     move $t0,$a0
 
     la  $t1,ms_last
     lw  $t2,0($t1)           # last_ms
-    beq $t2,$zero, TD_INIT   # primeira chamada apï¿½s reset/set
+    beq $t2,$zero, TD_INIT   # primeira chamada apos reset/set
 
-    # delta = now - last ; se wrap (now<last) sï¿½ atualiza last
+    # delta = now - last ; se wrap (now<last) se atualiza last
     subu $t3,$t0,$t2         # delta_ms
     sltu $t4,$t0,$t2
     bne  $t4,$zero, TD_SAVE_ONLY
 
     # ---------- clamp do delta ----------
     la   $t7,MS_PER_SEC
-    lw   $t7,0($t7)          # 1000
+    lw   $t7,0($t7)          
     la   $t8,DELTA_CAP_SEC
-    lw   $t8,0($t8)          # N
-    mul  $t9,$t7,$t8         # max_delta = 1000*N
-    sltu $a2,$t9,$t3         # a2=1 se delta > max
+    lw   $t8,0($t8)          
+    mul  $t9,$t7,$t8         
+    sltu $a2,$t9,$t3         
     beq  $a2,$zero, TD_CLAMP_OK
     move $t3,$t9
 TD_CLAMP_OK:
 
-    # total_ms = ms_accum + delta
+# total_ms = ms_accum + delta
+# acumula o delta de milissegundos desde a última atualização
+# em ms_accum para controlar a passagem de segundos
+
     la  $t5,ms_accum
     lw  $t6,0($t5)
     addu $t6,$t6,$t3
 
     # q = total_ms / 1000 ; r = total_ms % 1000
     divu $t6,$t7
-    mflo $s0                 # q: segundos a adicionar
-    mfhi $t6                 # r: resto ms
-    sw   $t6,0($t5)          # ms_accum = r
+    mflo $s0                 
+    mfhi $t6                 
+    sw   $t6,0($t5)          
     beq  $s0,$zero, TD_SAVE_ONLY
 
 # ---------- adiciona q segundos com rollover ----------
 TD_ADD_ONE_SEC:
     beq  $s0,$zero, TD_SAVE_ONLY
 
-    # ++sec
+    # ++segundos
     la  $s1,curr_sec
     lw  $s2,0($s1)
     addiu $s2,$s2,1
@@ -79,7 +113,7 @@ TD_ADD_ONE_SEC:
     bne  $a1,$zero, TD_SAVESEC
     move $s2,$zero
 
-    # ++min
+    # ++minutos
     la  $s3,curr_min
     lw  $s4,0($s3)
     addiu $s4,$s4,1
@@ -88,7 +122,7 @@ TD_ADD_ONE_SEC:
     bne  $a1,$zero, TD_SAVEMIN
     move $s4,$zero
 
-    # ++hour
+    # ++horas
     la  $s5,curr_hour
     lw  $s6,0($s5)
     addiu $s6,$s6,1
@@ -97,12 +131,12 @@ TD_ADD_ONE_SEC:
     bne  $a1,$zero, TD_SAVEHOUR
     move $s6,$zero
 
-    # ++day
+    # ++dias
     la  $s7,curr_day
     lw  $t8,0($s7)
     addiu $t8,$t8,1
 
-    # dias do mï¿½s
+    # dias do mes
     la  $a0,curr_mon
     lw  $a0,0($a0)
     la  $a1,curr_year
@@ -169,6 +203,13 @@ TD_END:
 # ------------------------------------------------------------
 # days_in_month(a0=mes 1..12, a1=ano) -> v0=dias
 # ------------------------------------------------------------
+# Calcula o número de dias do mês especificado, considerando anos bissextos.
+# Entrada:
+#   a0 = mês (1 a 12)
+#   a1 = ano completo (ex: 2025)
+# Saída:
+#   v0 = quantidade de dias no mês
+
 days_in_month:
     li  $t0,2
     bne $a0,$t0, DIM_NOT_FEB
@@ -213,6 +254,13 @@ DIM_NOT_FEB:
 # ------------------------------------------------------------
 # handle_datetime_set(a0=inp_buf) -> v0=1/0
 # ------------------------------------------------------------
+# Processa o comando de configuração manual de data/hora.
+# Entrada:
+#   a0 = ponteiro para a linha de comando (ex.: "set_datetime-YYYY-MM-DD-HH:MM:SS")
+# Saída:
+#   v0 = 1 se o comando foi reconhecido e processado
+#        0 se a linha de comando não corresponde a set_datetime
+
 handle_datetime_set:
     addiu $sp,$sp,-40
     sw $ra,36($sp)
@@ -287,7 +335,7 @@ HDS_HH:
     nop
     move $s5,$v0
 
-    # validaï¿½ï¿½es
+    # validaçoes
     blez $s0,HDS_RANGE
     blez $s1,HDS_RANGE
     blez $s2,HDS_RANGE

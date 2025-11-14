@@ -1,11 +1,24 @@
 # ============================================================
-# transacoes.asm — transações detalhadas + utilitários
-# Layout (32 bytes por transação):
-#   [0]      : 1=ativo, 0=vazio
-#   [1..8]   : conta destino (string, até 8, termina em 0)
-#   [9..12]  : valor em centavos (4 bytes, big-endian)
-#   [13..31] : "DD/MM/AAAA HH:MM:SS" + 0
-# 50 trans por cliente -> 1600 bytes por cliente
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: transacoes.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
 # ============================================================
 
         .data
@@ -32,7 +45,7 @@ mostrar_transacoes_debito:
 
     move  $s0, $a0
 
-    li    $t0, 1600              # 50 * 32
+    li    $t0, 1600              
     mul   $t1, $s0, $t0
     la    $s2, transacoes_detalhe_debito
     addu  $s2, $s2, $t1
@@ -42,7 +55,7 @@ mtd_loop:
     li    $t0, 50
     beq   $s1, $t0, mtd_fim
 
-    lb    $t1, 0($s2)            # ativo?
+    lb    $t1, 0($s2)            
     beq   $t1, $zero, mtd_next
 
     # data/hora
@@ -50,7 +63,7 @@ mtd_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaços
+    # 2 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -61,7 +74,7 @@ mtd_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaços
+    # 4 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -136,7 +149,7 @@ mtc_loop:
     li    $v0, 4
     syscall
 
-    # 2 espaços
+    # 2 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -147,7 +160,7 @@ mtc_loop:
     la    $a0, msg_transferencia
     syscall
 
-    # 4 espaços
+    # 4 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -195,7 +208,7 @@ mtc_fim:
 # ------------------------------------------------------------
 # adicionar_transacao_detalhe
 # a0 = idx_cliente
-# a1 = tipo (0 = débito, 1 = crédito)
+# a1 = tipo (0 = debito, 1 = cr?dito)
 # a2 = ponteiro pra conta (string)
 # a3 = valor em centavos (word)
 # ------------------------------------------------------------
@@ -302,7 +315,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # mes
+    
     la    $t0, curr_mon
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -310,11 +323,11 @@ preencher_data_hora_atual:
     nop
     move  $s0, $v0
 
-    li    $t1, '/'
+    li    $t1, ' '
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # ano
+    
     la    $t0, curr_year
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -326,7 +339,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # hora
+   
     la    $t0, curr_hour
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -338,7 +351,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # minuto
+    
     la    $t0, curr_min
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -350,7 +363,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # segundo
+    
     la    $t0, curr_sec
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -438,7 +451,7 @@ formatar_centavos:
     mflo  $s2            # reais
     mfhi  $t1            # centavos
 
-    addiu $s3, $s0, 24   # pilha de dígitos (inversa)
+    addiu $s3, $s0, 24   # pilha de digitos (inversa)
     move  $t2, $s3
 
     beq   $s2, $zero, fc_write_zero

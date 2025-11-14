@@ -1,4 +1,25 @@
-# main.asm — shell principal (MARS 4.5)
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: main.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
 
 # --- includes ---
 .include "data.asm"
@@ -10,8 +31,8 @@
 .include "transacoes.asm"
 .include "extratos.asm"
 .include "ops_util.asm"
-.include "persist.asm"        # R10: persistência (save/load)
-.include "cmd_persist.asm"   # <— NOVO: cmd_13/14/15
+.include "persist.asm"        # R10: persist?ncia (save/load)
+.include "cmd_persist.asm"   # <? NOVO: cmd_13/14/15
 .include "cmd_conta_format.asm"
 
 
@@ -24,31 +45,31 @@ main:
 
     # loop principal
 main_loop:
-    # mantém relógio lógico ativo
+    # mant?m relogio logico ativo
     jal  tick_datetime
-    # R7: juros automáticos
+    # R7: juros automaticos
     jal  aplicar_juros_auto
 
     # prompt
     la   $a0, banner
     jal  print_str
 
-    # lê linha
+   
     la   $a0, inp_buf
     li   $a1, 256
     jal  read_line
 
-    # trim à direita
+   
     la   $a0, inp_buf
     jal  strip_line_end
 
-    # exit?
+  
     la   $a0, inp_buf
     la   $a1, str_exit
     jal  strcmp
     beq  $v0, $zero, do_exit
 
-    # help?
+    
     la   $a0, inp_buf
     la   $a1, str_help
     jal  strcmp
@@ -63,12 +84,12 @@ dispatch_cmds:
     jal  handle_cmd_salvar
     bne  $v0, $zero, main_loop
 
-    # recarregar (cmd_14)
+   
     la   $a0, inp_buf
     jal  handle_cmd_recarregar
     bne  $v0, $zero, main_loop
 
-    # formatar (cmd_15)
+    
     la   $a0, inp_buf
     jal  handle_cmd_formatar
     bne  $v0, $zero, main_loop
@@ -148,7 +169,7 @@ dispatch_cmds:
     jal  handle_conta_format
     bne  $v0, $zero, main_loop
 
-    # nada pegou
+    
     la   $a0, msg_invalid
     jal  print_str
     j    main_loop

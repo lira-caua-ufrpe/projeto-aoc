@@ -1,4 +1,32 @@
-# ops_fin.asm — R2 (pagamentos) + R3 (registro de transações) + R7 (juros)
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: ops_fin..asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
+
+
+
+
+
+
+# ops_fin.asm  R2 (pagamentos) + R3 (registro de transa??es) + R7 (juros)
 # Handlers:
 #  - pagar_debito-<CONTA6>-<DV>-<VALORcentavos>
 #  - pagar_credito-<CONTA6>-<DV>-<VALORcentavos>
@@ -7,7 +35,7 @@
 #  - sacar-<CONTA6>-<DV>-<VALORcentavos>
 #  - depositar-<CONTA6>-<DV>-<VALORcentavos>
 #
-# Regras R3: até 50 trans/debito e 50 trans/credito por cliente (ring buffer).
+# Regras R3: ate 50 trans/debito e 50 trans/credito por cliente (ring buffer).
 
 .text
 .globl calc_off_i50k
@@ -114,7 +142,7 @@ pd_val_loop:
     j     pd_val_loop
     nop
 pd_val_end:
-    # normaliza valor para múltiplo de 100
+    # normaliza valor para multiplo de 100
     li    $t0, 100
     divu  $t8, $t0
     mflo  $t1
@@ -122,11 +150,11 @@ pd_val_end:
 
     # procura cliente por conta+DV
     lw    $t9, MAX_CLIENTS
-    move  $t1, $zero          # i=0
+    move  $t1, $zero          
 pd_find_loop:
     beq   $t1, $t9, pd_not_found
 
-    # usado?
+    
     la    $a0, clientes_usado
     addu  $a0, $a0, $t1
     lb    $a1, 0($a0)
@@ -148,14 +176,14 @@ pd_cmp6:
     addi  $v1, $v1, 1
     blt   $v1, 6, pd_cmp6
 
-    # dv confere?
+    # dv confere
     la    $a2, clientes_dv
     addu  $a2, $a2, $t1
     lb    $t2, 0($a2)
     bne   $t2, $s1, pd_next_i
 
     # --- ENCONTROU i ---
-    move  $s0, $t1                 # guarda índice do cliente
+    move  $s0, $t1                 # guarda indice do cliente
     sll   $t0, $s0, 2
 
     # saldo[i] >= valor ?
@@ -169,7 +197,7 @@ pd_cmp6:
     subu  $t3, $t3, $t8
     sw    $t3, 0($t2)
 
-    # ---- R3: registra débito ----
+    # ---- R3: registra d?bito ----
     # head
     la    $t4, trans_deb_head
     addu  $t4, $t4, $t0         # t0 = i*4
@@ -194,7 +222,7 @@ pd_cmp6:
 pd_head_ok:
     sw    $t5, 0($t4)
 
-    # wptr = head   (RECALC idx4 após jal)
+    # wptr = head   (RECALC idx4 ap?s jal)
     sll   $t0, $s0, 2
     la    $t7, trans_deb_wptr
     addu  $t7, $t7, $t0
@@ -219,7 +247,7 @@ pd_cnt_ok:
     sw    $t6, 0($t7)
 pd_cnt_keep:
 
-    # log detalhado (débito)
+    # log detalhado (d?bito)
     move  $a0, $s0
     li    $a1, 0
     la    $a2, cc_buf_acc
@@ -282,7 +310,7 @@ pd_epilogue:
 handle_pagar_credito:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)    # índice do cliente
+    sw    $s0, 24($sp)    # ?ndice do cliente
     sw    $s1, 20($sp)    # DV
     sw    $s2, 16($sp)    # (livre)
 
@@ -300,7 +328,7 @@ pc_pref_loop:
     nop
 
 pc_pref_ok:
-    # conta (6 dígitos)
+    # conta (6 d?gitos)
     la    $t4, cc_buf_acc
     li    $t5, 0
 pc_acc_loop:
@@ -401,7 +429,7 @@ pc_cmp6:
     la    $t3, clientes_devido_cent
     addu  $t3, $t3, $t0
     lw    $t4, 0($t3)
-    # normaliza dívida já existente (múltiplo de 100)
+    # normaliza d?vida j? existente (m?ltiplo de 100)
     li    $t5, 100
     divu  $t4, $t5
     mflo  $t6
@@ -416,13 +444,13 @@ pc_cmp6:
     addu  $t4, $t4, $t8
     sw    $t4, 0($t3)
 
-    # ===== registrar transação de crédito =====
+    # ===== registrar transa??o de cr?dito =====
     # head
     la    $t4, trans_cred_head
     addu  $t4, $t4, $t0
     lw    $t6, 0($t4)          # t6 = head (0..49)
 
-    # endereço do slot: (i, head)
+    # endere?o do slot: (i, head)
     move  $a0, $s0              # i
     move  $a1, $t6              # head
     jal   calc_off_i50k
@@ -441,7 +469,7 @@ pc_cmp6:
 pc_head_ok:
     sw    $t6, 0($t4)
 
-    # wptr = head  (RECALC idx4 após jal)
+    # wptr = head  (RECALC idx4 ap?s jal)
     sll   $t0, $s0, 2
     la    $t7, trans_cred_wptr
     addu  $t7, $t7, $t0
@@ -466,7 +494,7 @@ pc_cnt_ok:
     sw    $t9, 0($t7)
 pc_cnt_keep:
 
-    # log detalhado (crédito)
+    # log detalhado (cr?dito)
     move  $a0, $s0
     li    $a1, 1
     la    $a2, cc_buf_acc
@@ -685,7 +713,7 @@ al_done:
     nop
 
 ################################################################
-# DEBUG R3: Dump de transações (CRÉDITO / DÉBITO)
+# DEBUG R3: Dump de transa??es (CR?DITO / D?BITO)
 ################################################################
 
 .data
@@ -1051,7 +1079,7 @@ handle_dump_trans_deb:
     nop
 
 # =============================================================
-# R7 - Juros automáticos (1% a cada 60s) e registro no ring CRED
+# R7 - Juros autom?ticos (1% a cada 60s) e registro no ring CRED
 # =============================================================
 .text
 aplicar_juros_auto:
@@ -1099,7 +1127,7 @@ aplicar_juros_auto:
     lw    $t4, 0($t1)              # devido (cent)
     blez  $t4, .next_i
 
-    # juros = floor(devido/100). Se 0, não registra.
+    # juros = floor(devido/100). Se 0, n?o registra.
     li    $t5, 100
     divu  $t4, $t5
     mflo  $t6                      # juros
@@ -1135,7 +1163,7 @@ aplicar_juros_auto:
     mfhi  $s1
     sw    $s1, 0($t7)
 
-    # wptr = head   (RECALC idx4 após jal)
+    # wptr = head   (RECALC idx4 ap?s jal)
     sll   $t0, $s0, 2
     la    $t2, trans_cred_wptr
     addu  $t2, $t2, $t0
@@ -1170,7 +1198,7 @@ aplicar_juros_auto:
 handle_pagar_fatura:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)   # índice do cliente
+    sw    $s0, 24($sp)   # ?ndice do cliente
     sw    $s1, 20($sp)   # DV
     sw    $s2, 16($sp)   # METHOD
 
@@ -1222,7 +1250,7 @@ pf_dv_ok:
     bne   $t6, $t7, pf_badfmt
     addiu $t0, $t0, 1
 
-    # VALOR (até o próximo '-'): -> $t8
+    # VALOR (at? o pr?ximo '-'): -> $t8
     move  $t8, $zero
 pf_val_loop:
     lb    $t6, 0($t0)
@@ -1237,7 +1265,7 @@ pf_val_loop:
     j     pf_val_loop
     nop
 pf_val_end:
-    # normaliza (múltiplo de 100)
+    # normaliza (m?ltiplo de 100)
     li    $t1, 100
     divu  $t8, $t1
     mflo  $t2
@@ -1297,13 +1325,13 @@ pf_cmp6:
     la    $t1, clientes_devido_cent
     addu  $t1, $t1, $t0
     lw    $t2, 0($t1)
-    # normaliza dívida (múltiplo de 100)
+    # normaliza d?vida (m?ltiplo de 100)
     li    $t3, 100
     divu  $t2, $t3
     mflo  $t4
     mul   $t2, $t4, 100
 
-    # valor não pode exceder a dívida
+    # valor n?o pode exceder a d?vida
     sltu  $v1, $t2, $t8
     bne   $v1, $zero, pf_val_maior
 
@@ -1503,7 +1531,7 @@ hs_cmp6:
     subu  $t2, $t2, $t8
     sw    $t2, 0($t1)
 
-    # grava também no ring DEB (em head)
+    # grava tamb?m no ring DEB (em head)
     la    $t4, trans_deb_head
     addu  $t4, $t4, $t0
     lw    $t5, 0($t4)           # head
@@ -1523,7 +1551,7 @@ hs_cmp6:
 hs_head_ok:
     sw    $t5, 0($t4)
 
-    # (RECALC idx4 após jal)
+    # (RECALC idx4 ap?s jal)
     sll   $t0, $s0, 2
     la    $t7, trans_deb_wptr
     addu  $t7, $t7, $t0
@@ -1544,7 +1572,7 @@ hs_cnt_zero:
     sw    $t6, 0($t7)
 hs_log_ok:
 
-    # detalhado: tipo=0 (débito), conta atual, valor
+    # detalhado: tipo=0 (d?bito), conta atual, valor
     move  $a0, $s0
     li    $a1, 0
     la    $a2, cc_buf_acc
@@ -1718,7 +1746,7 @@ hdp_cmp6:
     addu  $t2, $t2, $t8
     sw    $t2, 0($t1)
 
-    # grava também no ring CRED (em head)
+    # grava tamb?m no ring CRED (em head)
     la    $t4, trans_cred_head
     addu  $t4, $t4, $t0
     lw    $t5, 0($t4)           # head
@@ -1738,7 +1766,7 @@ hdp_cmp6:
 hdp_head_ok:
     sw    $t5, 0($t4)
 
-    # (RECALC idx4 após jal)
+    # (RECALC idx4 ap?s jal)
     sll   $t0, $s0, 2
     la    $t7, trans_cred_wptr
     addu  $t7, $t7, $t0
@@ -1759,7 +1787,7 @@ hdp_cnt_zero:
     sw    $t6, 0($t7)
 hdp_log_ok:
 
-    # detalhado: tipo=1 (crédito), conta atual, valor
+    # detalhado: tipo=1 (cr?dito), conta atual, valor
     move  $a0, $s0
     li    $a1, 1
     la    $a2, cc_buf_acc

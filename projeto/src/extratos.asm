@@ -1,36 +1,65 @@
 # ============================================================
-# extratos.asm - R5 com detalhes de transações (MARS 4.5)
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: extratos.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
+
+
+# ============================================================
+# extratos.asm - R5 com detalhes de transa??es (MARS 4.5)
 # comandos:  credito_extrato-<CONTA6>-<DV>
 #            debito_extrato-<CONTA6>-<DV>
 # Dep.: data.asm, transacoes.asm (formatar_centavos), ops_util.asm (print_datahora)
 # ============================================================
 
 .data
-str_cmd_extrato_debito:   .asciiz "debito_extrato-"
-str_cmd_extrato_credito:  .asciiz "credito_extrato-"
+str_cmd_extrato_debito:   .asciiz 
+str_cmd_extrato_credito:  .asciiz 
 
-msg_extrato_credito_hdr:  .asciiz "\n=== EXTRATO CREDITO ===\nData/Hora           Tipo        Valor (R$)\n------------------------------------------\n"
-msg_extrato_debito_hdr:   .asciiz "\n=== EXTRATO DEBITO ===\nData/Hora           Tipo        Valor (R$)\n------------------------------------------\n"
+msg_extrato_credito_hdr:  .asciiz 
+msg_extrato_debito_hdr:   .asciiz 
 
 msg_limite_disp:          .asciiz "Limite disponivel: "
 msg_divida_atual:         .asciiz "Divida atual: "
-msg_nl:                   .asciiz "\n"
+msg_nl:                   .asciiz 
 
-lbl_sep_cols:             .asciiz "  "
-lbl_tipo_deb:             .asciiz "DEB       "
-lbl_tipo_cred:            .asciiz "CRED      "
-lbl_sem_mov:              .asciiz "(sem movimentacoes)\n"
+lbl_sep_cols:             .asciiz
+lbl_tipo_deb:             .asciiz
+lbl_tipo_cred:            .asciiz
+lbl_sem_mov:              .asciiz 
 
 .text
 .globl handle_extrato_credito
 .globl handle_extrato_debito
 
 # ------------------------------------------------------------
-# helper: procura cliente por conta(6) (em cc_buf_acc) + DV
-# a0 = &cc_buf_acc
-# a1 = dv (byte)
-# v0 = indice ou -1
+# helper: procura cliente por conta de 6 dígitos (em cc_buf_acc) + DV
+# Entrada:
+#   a0 = ponteiro para cc_buf_acc (6 dígitos da conta)
+#   a1 = DV da conta (byte)
+# Saída:
+#   v0 = índice do cliente encontrado (0..49) ou -1 se não encontrado
 # ------------------------------------------------------------
+# Percorre a lista de clientes, compara conta e DV, retornando
+# o índice correspondente ou -1 caso não exista.
+
 extr_buscar_cliente_conta_dv:
     lw    $t9, MAX_CLIENTS
     li    $t0, 0
@@ -84,8 +113,8 @@ extr_print_linha:
     sw    $ra, 28($sp)
     sw    $s0, 24($sp)
     sw    $s1, 20($sp)
-    sw    $s2, 16($sp)     # tipo
-    sw    $s3, 12($sp)     # valor
+    sw    $s2, 16($sp)     
+    sw    $s3, 12($sp)     
 
     move  $s2, $a0
     move  $s3, $a1
@@ -163,11 +192,11 @@ extr_print_credito_do_cliente:
 
     la    $t2, trans_cred_head
     addu  $t2, $t2, $t0
-    lw    $s2, 0($t2)              # head (próxima escrita)
+    lw    $s2, 0($t2)              # head (proxima escrita)
 
     lw    $s3, TRANS_MAX           # CAP
     bltz  $s1, c_sem_mov
-    sltu  $t3, $s3, $s1            # count > CAP ?
+    sltu  $t3, $s3, $s1            
     beq   $t3, $zero, c_cnt_ok
     nop
     move  $s1, $s3
@@ -232,7 +261,7 @@ c_fim:
     nop
 
 # ------------------------------------------------------------
-# extr_print_debito_do_cliente(a0 = idxCliente) (ordem: antigo -> novo)
+# extrato_print_debito_do_cliente(a0 = idxCliente) (ordem: antigo -> novo)
 # ------------------------------------------------------------
 extr_print_debito_do_cliente:
     addiu $sp, $sp, -40
@@ -380,7 +409,7 @@ hec_conta:
     addu  $t3, $t3, $t0
     lw    $t4, 0($t3)            # devido
 
-    # saneia (não-negativo e múltiplo de 100)
+    # saneia (nao-negativo e multiplo de 100)
     bltz  $t2, hec_lim_zero
     nop
     li    $t6, 100
@@ -405,7 +434,7 @@ hec_dev_zero:
     move  $t4, $zero
 hec_dev_ok:
 
-    move  $s2, $t4                # preserva dívida p/ impressão
+    move  $s2, $t4                # preserva divida p/ impressao
 
     # disponivel = max(limite - devido, 0)
     subu  $t5, $t2, $t4
@@ -415,7 +444,7 @@ hec_dev_ok:
     move  $t5, $zero
 hec_disp_ok:
 
-    # imprime limite disponível
+    # imprime limite disponivel
     li    $v0, 4
     la    $a0, msg_limite_disp
     syscall
@@ -429,7 +458,7 @@ hec_disp_ok:
     la    $a0, msg_nl
     syscall
 
-    # imprime dívida atual
+    # imprime divida atual
     li    $v0, 4
     la    $a0, msg_divida_atual
     syscall
@@ -443,7 +472,7 @@ hec_disp_ok:
     la    $a0, msg_nl
     syscall
 
-    # lista transações (todas!)
+    # lista transações (todas)
     move  $a0, $s0
     jal   extr_print_credito_do_cliente
     nop
@@ -569,3 +598,4 @@ hedb_end:
     addiu $sp, $sp, 24
     jr    $ra
     nop
+

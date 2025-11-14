@@ -1,7 +1,30 @@
 # ============================================================
-# persist.asm — R10: salvar / carregar estado binário (MARS 4.5)
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: persist.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
+
+# ============================================================
+# persist.asm ? R10: salvar / carregar estado bin?rio (MARS 4.5)
 # Usa syscalls 13(open), 14(read), 15(write), 16(close)
-# Arquivo: opcode_state.bin (diretório atual do MARS)
+# Arquivo: opcode_state.bin (diret?rio atual do MARS)
 # ============================================================
 
 .data
@@ -230,7 +253,7 @@ save_state:
     jal   write_block
     beq   $v0, $zero, ss_close_fail
 
-    # Data/hora e cronômetros
+    # Data/hora e cronometros
     move  $a0, $s0
     la    $a1, curr_day
     li    $a2, 24
@@ -285,7 +308,7 @@ ss_end:
     nop
 
 # ============================================================
-# load_state() -> v0=1 ok; 0 se não tinha arquivo / falhou
+# load_state() -> v0=1 ok; 0 se nao tinha arquivo / falhou
 # ============================================================
 load_state:
     addiu $sp, $sp, -32

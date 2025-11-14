@@ -1,9 +1,32 @@
-# data.asm – dados globais e constantes do projeto (R1..R4)
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e OrganizaÃ§Ã£o de Computadores â€” 2025.2
+# AvaliaÃ§Ã£o: Projetos 1 (PE1) â€“ 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de ExercÃ­cios â€“ QuestÃ£o 1 (string.h)
+# Arquivo: data.asm
+# Equipe: OPCODE
+# Integrantes: CauÃ£ Lira; SÃ©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (horÃ¡rio da aula)
+# ApresentaÃ§Ã£o: vÃ­deo no ato da entrega
+
+
+# DescriÃ§Ã£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# ConvenÃ§Ãµes:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - TemporÃ¡rios: $t0..$t9 | PC inicia em 'main'
+# ObservaÃ§Ã£o: Como em C, o comportamento de strcat com Ã¡reas sobrepostas Ã© indefinido.
+# ============================================================
 
         .data
 
-# ---- Exportações (usadas em outros arquivos) ----
-# IMPORTANTE: Não declare .globl destes símbolos em nenhum outro arquivo.
+# ---- Exportacoes (usadas em outros arquivos) ----
+
         .globl  MAX_CLIENTS, NAME_MAX, CPF_STR_LEN, ACC_NUM_LEN, ACC_DV_LEN, LIMITE_PADRAO_CENT, TRANS_MAX
         .globl  inp_buf, bank_name, banner, help_txt, msg_invalid, msg_bye
         .globl  str_help, str_exit
@@ -14,16 +37,16 @@
         .globl  msg_cc_badfmt, msg_cc_badcpf, msg_cc_badacc, msg_cc_badname
         .globl  msg_pay_deb_ok, msg_pay_cred_ok, msg_err_saldo_insuf, msg_err_limite_insuf
         .globl  msg_err_cli_inexist, msg_limite_ok, msg_limite_baixo_divida
-        # R3 – transações
+        # R3 ? transa??es
         .globl  trans_deb_vals, trans_cred_vals
         .globl  trans_deb_head, trans_deb_count, trans_deb_wptr
         .globl  trans_cred_head, trans_cred_count, trans_cred_wptr
         # comandos de dump
         .globl  str_cmd_dumpcred, str_cmd_dumpdeb
-        # buffers temporários
+        # buffers tempor?rios
         .globl  cc_buf_cpf, cc_buf_acc, cc_buf_nome
-        .globl  cc_buf_dv           # <— exportado
-        # R4 – data/hora
+        .globl  cc_buf_dv           # <? exportado
+        # R4 ? data/hora
         .globl  curr_day, curr_mon, curr_year, curr_hour, curr_min, curr_sec
         .globl  ms_last, ms_accum, month_days_norm
         .globl  str_cmd_time_set, str_cmd_time_show, msg_time_set_ok, msg_time_badfmt, msg_time_range
@@ -41,14 +64,14 @@ NAME_MAX:           .word 32
 CPF_STR_LEN:        .word 11
 ACC_NUM_LEN:        .word 6
 ACC_DV_LEN:         .word 1
-LIMITE_PADRAO_CENT: .word 150000       # R$ 1500,00
-TRANS_MAX:          .word 50           # capacidade do ring buffer por cliente
+LIMITE_PADRAO_CENT: .word 150000       
+TRANS_MAX:          .word 50           
 
 # ---- Buffers gerais (terminal) ----
 inp_buf:                    .space 256
 buffer_valor_formatado:     .space 32    # "R$ 1.234.567,89" cabe tranquilo
-# Buffer para armazenar o dígito verificador (DV)
-cc_buf_dv:  .space 1   # 1 byte para o DV (um único caractere)
+# Buffer para armazenar o digito verificador (DV)
+cc_buf_dv:  .space 1   # 1 byte para o DV (um ?nico caractere)
 
 # ---- Banner / textos do shell ----
 bank_name:  .asciiz "opcode"
@@ -87,7 +110,7 @@ help_txt:
 msg_invalid:.asciiz "Comando invalido\n"
 msg_bye:    .asciiz "Encerrando...\n"
 
-# literais para comparação direta no main
+
 str_help:   .asciiz "help"
 str_exit:   .asciiz "exit"
 
@@ -100,7 +123,7 @@ str_cmd_pay_fatura:    .asciiz "pagar_fatura-"
 str_cmd_sacar:         .asciiz "sacar-"
 str_cmd_depositar:     .asciiz "depositar-"
 
-# --- comandos de persistência ---
+# --- comandos de persistencia ---
 str_salvar:       .asciiz "salvar"
 str_recarregar:   .asciiz "recarregar"
 str_formatar:     .asciiz "formatar"
@@ -161,7 +184,7 @@ clientes_limite_cent:      .word 0:50
 clientes_devido_cent:      .word 0:50
 
 # ==========================
-#   R3 – buffers de transações (por cliente)
+#   R3 ? buffers de transa??es (por cliente)
 # ==========================
 # head/count/wptr como WORDs (inicializados em 0)
         .align 2
@@ -178,7 +201,7 @@ trans_cred_count:          .word 0:50
         .align 2
 trans_cred_wptr:           .word 0:50
 
-# valores das transações (centavos) – 50 clientes * 50 slots = 2500 words
+# valores das transa??es (centavos) ? 50 clientes * 50 slots = 2500 words
         .align 2
 trans_deb_vals:            .word 0:2500
         .align 2
@@ -188,13 +211,13 @@ trans_cred_vals:           .word 0:2500
 str_cmd_dumpcred:  .asciiz "dump_trans-cred-"
 str_cmd_dumpdeb:   .asciiz "dump_trans-deb-"
 
-# buffers temporários
+# buffers tempor?rios
 cc_buf_cpf:   .space 12   # 11 + '\0'
 cc_buf_acc:   .space 7    # 6 + '\0'
 cc_buf_nome:  .space 33   # 32 + '\0'
 
 # ==========================
-#   R4 – Data/Hora
+#   R4 ? Data/Hora
 # ==========================
         .align 2
 curr_day:   .word 1
@@ -225,8 +248,8 @@ msg_fmt_conta_ok:     .asciiz "Conta formatada (transacoes zeradas).\n"
 dash_str:             .asciiz "-"
 onechar_buf:          .space 2
 
-# ===================== R7: Juros automáticos =====================
-# 1% a cada 60 segundos. Relógio absoluto em segundos e gate anti-reentrada.
+# ===================== R7: Juros autom?ticos =====================
+# 1% a cada 60 segundos. Rel?gio absoluto em segundos e gate anti-reentrada.
 
         .data
         .align 2
@@ -248,7 +271,6 @@ juros_last_abssec:  .word 0
 juros_gate:         .word 0        # 0 = liberado; 1 = travado (ops_fin controla)
 
         .globl JUROS_USA_VALOR_NEG
-JUROS_USA_VALOR_NEG:.word 1        # juros registrados como valor negativo (convenção)
-
+JUROS_USA_VALOR_NEG:.word 1        # juros registrados como valor negativo (conven??o)
 
 
