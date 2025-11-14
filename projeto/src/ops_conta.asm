@@ -1,34 +1,34 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e Organização de Computadores — 2025.2
-# Avaliação: Projetos 1 (PE1) – 1a VA
+# Disciplina: Arquitetura e OrganizaÃ§Ã£o de Computadores â€” 2025.2
+# AvaliaÃ§Ã£o: Projetos 1 (PE1) â€“ 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Atividade: Lista de ExercÃ­cios â€“ QuestÃ£o 1 (string.h)
 # Arquivo: ops_conta.asm
 # Equipe: OPCODE
-# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (horário da aula)
-# Apresentação: vídeo no ato da entrega
-# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: CauÃ£ Lira; SÃ©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (horÃ¡rio da aula)
+# ApresentaÃ§Ã£o: vÃ­deo no ato da entrega
+# DescriÃ§Ã£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# Convenções:
+# ConvenÃ§Ãµes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Temporários: $t0..$t9 | PC inicia em 'main'
-# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+#   - TemporÃ¡rios: $t0..$t9 | PC inicia em 'main'
+# ObservaÃ§Ã£o: Como em C, o comportamento de strcat com Ã¡reas sobrepostas Ã© indefinido.
 # =========================================================
 
 
-# ops_conta.asm — handler para o comando:
+# ops_conta.asm â€” handler para o comando:
 # conta_cadastrar-<CPF>-<CONTA6>-<NOME>
 # 
-# Responsável por processar a criação de uma nova conta de cliente,
-# validando CPF, atribuindo número da conta e armazenando o nome.
-# Depende de funções auxiliares como strcmp, strncmp, print_str, read_line,
-# e de símbolos definidos em data.asm.
+# ResponsÃ¡vel por processar a criaÃ§Ã£o de uma nova conta de cliente,
+# validando CPF, atribuindo nÃºmero da conta e armazenando o nome.
+# Depende de funÃ§Ãµes auxiliares como strcmp, strncmp, print_str, read_line,
+# e de sÃ­mbolos definidos em data.asm.
 
 
 .data
@@ -131,9 +131,9 @@ cc_name_end:
     sb    $zero, 0($t4)
     beq   $t5, $zero, cc_badname
 
-# -------- Calcula DV (módulo 11, pesos 2..7, d0 = dígito menos significativo) --------
-# Aplica o algoritmo de dígito verificador módulo 11 à conta de 6 dígitos,
-# usando pesos cíclicos de 2 a 7, começando do dígito menos significativo.
+# -------- Calcula DV (mÃ³dulo 11, pesos 2..7, d0 = dÃ­gito menos significativo) --------
+# Aplica o algoritmo de dÃ­gito verificador mÃ³dulo 11 Ã  conta de 6 dÃ­gitos,
+# usando pesos cÃ­clicos de 2 a 7, comeÃ§ando do dÃ­gito menos significativo.
 
     la    $t0, cc_buf_acc
     addiu $t0, $t0, 5        
@@ -353,28 +353,28 @@ cc_epilogue:
     jr    $ra
 
 
-# Função para extrair conta e DV do comando
-# A conta é de 6 dígitos e o DV é um caractere (0-9 ou X)
-# A função coloca a conta em cc_buf_acc e o DV em cc_buf_dv
+# FunÃ§Ã£o para extrair conta e DV do comando
+# A conta Ã© de 6 dÃ­gitos e o DV Ã© um caractere (0-9 ou X)
+# A funÃ§Ã£o coloca a conta em cc_buf_acc e o DV em cc_buf_dv
 # Exemplo de comando: "123456-0"
 
 extract_conta:
     # Extrai os primeiros 6 caracteres como a conta
-    li   $t0, 6                  # Limite de 6 dígitos para a conta
-    la   $t1, cc_buf_acc         # Endereço onde vai armazenar a conta
+    li   $t0, 6                  # Limite de 6 dÃ­gitos para a conta
+    la   $t1, cc_buf_acc         # EndereÃ§o onde vai armazenar a conta
 extract_conta_loop:
-    lb   $t2, 0($a0)             # Carrega o próximo caractere do comando
-    beq  $t2, 45, extract_dv     # Se for o '-' (45 em ASCII), começa a extrair o DV
+    lb   $t2, 0($a0)             # Carrega o prÃ³ximo caractere do comando
+    beq  $t2, 45, extract_dv     # Se for o '-' (45 em ASCII), comeÃ§a a extrair o DV
     sb   $t2, 0($t1)             # Armazena o caractere na conta
-    addiu $t1, $t1, 1            # Avança para o próximo byte de conta
-    addiu $a0, $a0, 1            # Avança para o próximo caractere do comando
+    addiu $t1, $t1, 1            # AvanÃ§a para o prÃ³ximo byte de conta
+    addiu $a0, $a0, 1            # AvanÃ§a para o prÃ³ximo caractere do comando
     addiu $t0, $t0, -1
-    bgtz $t0, extract_conta_loop # Continua até 6 caracteres
+    bgtz $t0, extract_conta_loop # Continua atÃ© 6 caracteres
     j     extract_done
 
 extract_dv:
-    lb   $t2, 0($a0)             # Extrai o DV (após o '-')
-    la   $t3, cc_buf_dv          # Endereço onde vai armazenar o DV
+    lb   $t2, 0($a0)             # Extrai o DV (apÃ³s o '-')
+    la   $t3, cc_buf_dv          # EndereÃ§o onde vai armazenar o DV
     sb   $t2, 0($t3)             # Armazena o DV
 
 extract_done:
@@ -435,7 +435,7 @@ bccc_cmp_dash:
     lb    $t6, 0($s2)
     li    $t7, 45           # '-'
     bne   $t6, $t7, bccc_next_reset
-    # avança pro DV do buffer
+    # avanÃ§a pro DV do buffer
     addiu $s2, $s2, 1
 
     # DV do cliente
@@ -476,7 +476,7 @@ bccc_end:
 handle_conta_fechar:
     addiu $sp, $sp, -32
     sw    $ra, 28($sp)
-    sw    $s0, 24($sp)   # índice do cliente
+    sw    $s0, 24($sp)   # Ã­ndice do cliente
     sw    $s1, 20($sp)   # DV
 
     # Prefixo "conta_fechar-"
@@ -493,7 +493,7 @@ cf_chk_pref_loop:
     nop
 
 cf_pref_ok:
-    # CONTA (6 dígitos)
+    # CONTA (6 dÃ­gitos)
     la    $t4, cc_buf_acc
     li    $t5, 0
 cf_acc_loop:
@@ -563,14 +563,14 @@ cf_cmp6:
     bne   $t2, $zero, cf_err_saldo   # saldo != 0  -> erro
 
 
-    # Verificar dívida do cartão de crédito
+    # Verificar dÃ­vida do cartÃ£o de crÃ©dito
     la    $t3, clientes_devido_cent
     addu  $t3, $t3, $t0
-    lw    $t4, 0($t3)           # dívida
-    bne   $t4, $zero, cf_err_divida  # dívida != 0 -> erro
+    lw    $t4, 0($t3)           # dÃ­vida
+    bne   $t4, $zero, cf_err_divida  # dÃ­vida != 0 -> erro
 
 
-    # Apagar registros de transações
+    # Apagar registros de transaÃ§Ãµes
     li    $t5, 50
     la    $t6, trans_deb_vals
     la    $t7, trans_cred_vals
