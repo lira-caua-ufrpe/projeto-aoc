@@ -1,24 +1,24 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e OrganizaÁ„o de Computadores ó 2025.2
-# AvaliaÁ„o: Projetos 1 (PE1) ñ 1a VA
+# Disciplina: Arquitetura e Organiza√ß√£o de Computadores ‚Äî 2025.2
+# Avalia√ß√£o: Projetos 1 (PE1) ‚Äì 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de ExercÌcios ñ Quest„o 1 (string.h)
+# Atividade: Lista de Exerc√≠cios ‚Äì Quest√£o 1 (string.h)
 # Arquivo: ops_fin..asm
 # Equipe: OPCODE
-# Integrantes: Cau„ Lira; SÈrgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (hor·rio da aula)
-# ApresentaÁ„o: vÌdeo no ato da entrega
-# DescriÁ„o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: Cau√£ Lira; S√©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (hor√°rio da aula)
+# Apresenta√ß√£o: v√≠deo no ato da entrega
+# Descri√ß√£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# ConvenÁıes:
+# Conven√ß√µes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Tempor·rios: $t0..$t9 | PC inicia em 'main'
-# ObservaÁ„o: Como em C, o comportamento de strcat com ·reas sobrepostas È indefinido.
+#   - Tempor√°rios: $t0..$t9 | PC inicia em 'main'
+# Observa√ß√£o: Como em C, o comportamento de strcat com √°reas sobrepostas √© indefinido.
 # ============================================================
 
 
