@@ -1,36 +1,36 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e OrganizaÁ„o de Computadores ó 2025.2
-# AvaliaÁ„o: Projetos 1 (PE1) ñ 1a VA
+# Disciplina: Arquitetura e Organiza√ß√£o de Computadores ‚Äî 2025.2
+# Avalia√ß√£o: Projetos 1 (PE1) ‚Äì 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de ExercÌcios ñ Quest„o 1 (string.h)
+# Atividade: Lista de Exerc√≠cios ‚Äì Quest√£o 1 (string.h)
 # Arquivo: time.asm
 # Equipe: OPCODE
-# Integrantes: Cau„ Lira; SÈrgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (hor·rio da aula)
-# ApresentaÁ„o: vÌdeo no ato da entrega
-# DescriÁ„o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: Cau√£ Lira; S√©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (hor√°rio da aula)
+# Apresenta√ß√£o: v√≠deo no ato da entrega
+# Descri√ß√£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# ConvenÁıes:
+# Conven√ß√µes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Tempor·rios: $t0..$t9 | PC inicia em 'main'
-# ObservaÁ„o: Como em C, o comportamento de strcat com ·reas sobrepostas È indefinido.
+#   - Tempor√°rios: $t0..$t9 | PC inicia em 'main'
+# Observa√ß√£o: Como em C, o comportamento de strcat com √°reas sobrepostas √© indefinido.
 # ============================================================
 
 
-# time.asm ó handler para configurar e manter data/hora
+# time.asm ‚Äî handler para configurar e manter data/hora
 # Usa R4 e a syscall 30 para obter o tempo do sistema
 
 ############################
-# ConfiguraÁ„o anti-turbo  #
+# Configura√ß√£o anti-turbo  #
 ############################
-# Este bloco È destinado a prevenir execuÁ„o r·pida excessiva (anti-turbo),
+# Este bloco √© destinado a prevenir execu√ß√£o r√°pida excessiva (anti-turbo),
 # provavelmente limitando loops ou controlando delays para que a contagem de
-# tempo no sistema n„o avance de forma irrealista.
+# tempo no sistema n√£o avance de forma irrealista.
 
         .data
 MS_PER_SEC:       .word 1000      # 1s  = 1000 ms
@@ -44,7 +44,7 @@ DELTA_CAP_SEC:    .word 5         # no maximo. 5s por chamada (evita saltos)
 
 
 # ------------------------------------------------------------
-# tick_datetime() ó atualiza data/hora a cada tick
+# tick_datetime() ‚Äî atualiza data/hora a cada tick
 # ------------------------------------------------------------
 tick_datetime:
     addiu $sp,$sp,-44
@@ -58,8 +58,8 @@ tick_datetime:
     sw $s6,12($sp)
     sw $s7,8($sp)
 
-# now_ms ó obtÈm o tempo atual em milissegundos usando a syscall 30
-# O valor retornado pelo sistema È colocado em $a0
+# now_ms ‚Äî obt√©m o tempo atual em milissegundos usando a syscall 30
+# O valor retornado pelo sistema √© colocado em $a0
 
     li  $v0,30
     syscall
@@ -86,7 +86,7 @@ tick_datetime:
 TD_CLAMP_OK:
 
 # total_ms = ms_accum + delta
-# acumula o delta de milissegundos desde a ˙ltima atualizaÁ„o
+# acumula o delta de milissegundos desde a √∫ltima atualiza√ß√£o
 # em ms_accum para controlar a passagem de segundos
 
     la  $t5,ms_accum
@@ -203,12 +203,12 @@ TD_END:
 # ------------------------------------------------------------
 # days_in_month(a0=mes 1..12, a1=ano) -> v0=dias
 # ------------------------------------------------------------
-# Calcula o n˙mero de dias do mÍs especificado, considerando anos bissextos.
+# Calcula o n√∫mero de dias do m√™s especificado, considerando anos bissextos.
 # Entrada:
-#   a0 = mÍs (1 a 12)
+#   a0 = m√™s (1 a 12)
 #   a1 = ano completo (ex: 2025)
-# SaÌda:
-#   v0 = quantidade de dias no mÍs
+# Sa√≠da:
+#   v0 = quantidade de dias no m√™s
 
 days_in_month:
     li  $t0,2
@@ -254,12 +254,12 @@ DIM_NOT_FEB:
 # ------------------------------------------------------------
 # handle_datetime_set(a0=inp_buf) -> v0=1/0
 # ------------------------------------------------------------
-# Processa o comando de configuraÁ„o manual de data/hora.
+# Processa o comando de configura√ß√£o manual de data/hora.
 # Entrada:
 #   a0 = ponteiro para a linha de comando (ex.: "set_datetime-YYYY-MM-DD-HH:MM:SS")
-# SaÌda:
+# Sa√≠da:
 #   v0 = 1 se o comando foi reconhecido e processado
-#        0 se a linha de comando n„o corresponde a set_datetime
+#        0 se a linha de comando n√£o corresponde a set_datetime
 
 handle_datetime_set:
     addiu $sp,$sp,-40
@@ -335,7 +335,7 @@ HDS_HH:
     nop
     move $s5,$v0
 
-    # validaÁoes
+    # valida√ßoes
     blez $s0,HDS_RANGE
     blez $s1,HDS_RANGE
     blez $s2,HDS_RANGE
