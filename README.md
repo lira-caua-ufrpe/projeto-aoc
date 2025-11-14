@@ -17,6 +17,7 @@
 - **Cauã Lira**
 - **Lucas Emanuel**
 - **Sérgio Ricardo**
+- **Vitor Emmanoel**
 
 ## 🚀 Como executar (rápido)
 1. Abra o **MARS 4.5** que já está no repositório (arquivo `Mars4_5.jar`).
