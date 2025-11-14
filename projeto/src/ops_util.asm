@@ -17,21 +17,21 @@
 # ------------------------------------------------------------
 print_2dig:
     li   $t0, 10
-    divu $a0, $t0               # Divide a0 por 10
-    mflo $t1                    # $t1 = dezenas
-    mfhi $t2                    # $t2 = unidades
+    divu $a0, $t0               
+    mflo $t1                    
+    mfhi $t2                    
 
     # Imprime dezenas
-    li   $v0, 11                # syscall para print_char
-    addiu $a0, $t1, 48          # converte para ASCII ('0' + dezenas)
+    li   $v0, 11                
+    addiu $a0, $t1, 48          
     syscall
 
     # Imprime unidades
     li   $v0, 11
-    addiu $a0, $t2, 48          # converte para ASCII ('0' + unidades)
+    addiu $a0, $t2, 48          
     syscall
 
-    jr   $ra                    # retorna
+    jr   $ra                   
 
 # ------------------------------------------------------------
 # print_datahora()
@@ -69,7 +69,7 @@ print_datahora:
     # --- Imprime ano (AAAA) ---
     la   $t0, curr_year
     lw   $a0, 0($t0)
-    jal  __pu_print4              # usa função interna para imprimir 4 dígitos
+    jal  __pu_print4              
 
     # imprime espaço entre data e hora
     li   $v0, 11
@@ -81,7 +81,7 @@ print_datahora:
     lw   $a0, 0($t0)
     jal  print_2dig
 
-    # imprime ':'
+    
     li   $v0, 11
     li   $a0, ':'
     syscall
@@ -91,7 +91,7 @@ print_datahora:
     lw   $a0, 0($t0)
     jal  print_2dig
 
-    # imprime ':'
+    
     li   $v0, 11
     li   $a0, ':'
     syscall
@@ -117,33 +117,33 @@ __pu_print4:
     # --- milhar ---
     li   $t0, 1000
     divu $a0, $t0
-    mflo $t1                     # t1 = milhar
-    mfhi $t3                     # t3 = resto
+    mflo $t1                    
+    mfhi $t3                    
     li   $v0, 11
-    addiu $a0, $t1, 48           # converte milhar para ASCII
+    addiu $a0, $t1, 48          
     syscall
 
     # --- centena ---
     li   $t0, 100
     divu $t3, $t0
-    mflo $t1                     # t1 = centena
-    mfhi $t3                     # t3 = resto
+    mflo $t1                    
+    mfhi $t3                    
     li   $v0, 11
-    addiu $a0, $t1, 48           # converte centena para ASCII
+    addiu $a0, $t1, 48           
     syscall
 
     # --- dezena ---
     li   $t0, 10
     divu $t3, $t0
-    mflo $t1                     # t1 = dezena
-    mfhi $t2                     # t2 = unidade
+    mflo $t1                     
+    mfhi $t2                     
     li   $v0, 11
-    addiu $a0, $t1, 48           # converte dezena para ASCII
+    addiu $a0, $t1, 48           
     syscall
 
     # --- unidade ---
     li   $v0, 11
-    addiu $a0, $t2, 48           # converte unidade para ASCII
+    addiu $a0, $t2, 48          
     syscall
 
     jr   $ra
