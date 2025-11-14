@@ -1,24 +1,24 @@
 # ============================================================
 # Universidade Federal Rural de Pernambuco (UFRPE)
-# Disciplina: Arquitetura e OrganizaÁ„o de Computadores ó 2025.2
-# AvaliaÁ„o: Projetos 1 (PE1) ñ 1a VA
+# Disciplina: Arquitetura e Organiza√ß√£o de Computadores ‚Äî 2025.2
+# Avalia√ß√£o: Projetos 1 (PE1) ‚Äì 1a VA
 # Professor: Vitor Coutinho
-# Atividade: Lista de ExercÌcios ñ Quest„o 1 (string.h)
+# Atividade: Lista de Exerc√≠cios ‚Äì Quest√£o 1 (string.h)
 # Arquivo: extratos.asm
 # Equipe: OPCODE
-# Integrantes: Cau„ Lira; SÈrgio Ricardo; Lucas Emanuel
-# Data de entrega: 13/11/2025 (hor·rio da aula)
-# ApresentaÁ„o: vÌdeo no ato da entrega
-# DescriÁ„o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+# Integrantes: Cau√£ Lira; S√©rgio Ricardo; Lucas Emanuel; Vitor Emmanoel
+# Data de entrega: 13/11/2025 (hor√°rio da aula)
+# Apresenta√ß√£o: v√≠deo no ato da entrega
+# Descri√ß√£o: Implementa strcpy, memcpy, strcmp, strncmp, strcat
 #            e um main com casos de teste no MARS (4.5+).
-# ConvenÁıes:
+# Conven√ß√µes:
 #   - strcpy(a0=dst, a1=src)              -> v0=dst
 #   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
 #   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
 #   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
 #   - strcat(a0=dst, a1=src)              -> v0=dst
-#   - Tempor·rios: $t0..$t9 | PC inicia em 'main'
-# ObservaÁ„o: Como em C, o comportamento de strcat com ·reas sobrepostas È indefinido.
+#   - Tempor√°rios: $t0..$t9 | PC inicia em 'main'
+# Observa√ß√£o: Como em C, o comportamento de strcat com √°reas sobrepostas √© indefinido.
 # ============================================================
 
 
@@ -50,15 +50,15 @@ lbl_sem_mov:              .asciiz
 .globl handle_extrato_debito
 
 # ------------------------------------------------------------
-# helper: procura cliente por conta de 6 dÌgitos (em cc_buf_acc) + DV
+# helper: procura cliente por conta de 6 d√≠gitos (em cc_buf_acc) + DV
 # Entrada:
-#   a0 = ponteiro para cc_buf_acc (6 dÌgitos da conta)
+#   a0 = ponteiro para cc_buf_acc (6 d√≠gitos da conta)
 #   a1 = DV da conta (byte)
-# SaÌda:
-#   v0 = Ìndice do cliente encontrado (0..49) ou -1 se n„o encontrado
+# Sa√≠da:
+#   v0 = √≠ndice do cliente encontrado (0..49) ou -1 se n√£o encontrado
 # ------------------------------------------------------------
 # Percorre a lista de clientes, compara conta e DV, retornando
-# o Ìndice correspondente ou -1 caso n„o exista.
+# o √≠ndice correspondente ou -1 caso n√£o exista.
 
 extr_buscar_cliente_conta_dv:
     lw    $t9, MAX_CLIENTS
@@ -472,7 +472,7 @@ hec_disp_ok:
     la    $a0, msg_nl
     syscall
 
-    # lista transaÁıes (todas)
+    # lista transa√ß√µes (todas)
     move  $a0, $s0
     jal   extr_print_credito_do_cliente
     nop
