@@ -15,7 +15,7 @@
 
 ## 👥 Equipe
 - **Cauã Lira**
-- **Lucas Emanuel**
+- **Lucas Emmanuel**
 - **Sérgio Ricardo**
 - **Vitor Emmanoel**
 
