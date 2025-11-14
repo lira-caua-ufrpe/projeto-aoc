@@ -1,5 +1,28 @@
-# io.asm — rotinas básicas de E/S via syscalls (terminal MARS)
-# R11: terminal lê linha até ENTER e só então interpreta o comando.
+# ============================================================
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: io.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
+# ============================================================
+
+# io.asm ? rotinas b?sicas de E/S via syscalls (terminal MARS)
+# R11: terminal l? linha at? ENTER e s? ent?o interpreta o comando.
 
 .text
 .globl print_str
@@ -10,12 +33,12 @@
 # print_str(a0=addr) -> imprime string '\0'-terminada (syscall 4)
 # ------------------------------------------------------------
 print_str:
-    beq   $a0, $zero, print_str_end   # se ponteiro nulo, sai da função
-    li    $v0, 4                      # código da syscall para print_string
-    syscall                           # executa a syscall (imprime string)
+    beq   $a0, $zero, print_str_end
+    li    $v0, 4          # print_string
+    syscall
 print_str_end:
-    jr    $ra                         # retorna
-    nop                               # atraso de pipeline
+    jr    $ra
+    nop
 
 # ------------------------------------------------------------
 # read_line(a0=buf, a1=maxlen) -> v0 = len (sem '\n')
@@ -23,7 +46,7 @@ print_str_end:
 # e retorna o tamanho (sem contar '\0').
 # ------------------------------------------------------------
 read_line:
-    # salva registradores temporários e endereço de retorno na pilha
+    # salva $ra, $t0-$t3
     addiu $sp, $sp, -20
     sw    $ra, 16($sp)
     sw    $t0, 12($sp)
@@ -32,101 +55,100 @@ read_line:
     sw    $t3,  0($sp)
 
     # chamada de leitura
-    move  $t0, $a0        # t0 = endereço do buffer
-    move  $t1, $a1        # t1 = tamanho máximo da leitura
-    move  $a0, $t0        # coloca buffer em a0 para syscall
-    move  $a1, $t1        # coloca tamanho em a1
-    li    $v0, 8          # código da syscall read_string
-    syscall               # lê string até ENTER (ou maxlen - 1)
+    move  $t0, $a0        
+    move  $t1, $a1        
+    move  $a0, $t0
+    move  $a1, $t1
+    li    $v0, 8          
+    syscall               
 
-    # varre para achar '\n' e contar o comprimento
-    move  $t2, $t0        # t2 = cursor que percorre o buffer
-    move  $v0, $zero      # v0 = contador de caracteres (len)
+    # varre para achar '\n' e contar len
+    move  $t2, $t0        
+    move  $v0, $zero      
 RL_LOOP:
-    lb    $t3, 0($t2)                 # lê byte atual
-    beq   $t3, $zero, RL_END          # se '\0', fim da string
-    beq   $t3, 10, RL_NEWLINE         # se '\n' (ASCII 10), tratar separadamente
-    addiu $v0, $v0, 1                 # incrementa comprimento
-    addiu $t2, $t2, 1                 # avança ponteiro
-    j     RL_LOOP                     # repete o loop
+    lb    $t3, 0($t2)
+    beq   $t3, $zero, RL_END    
+    beq   $t3, 10, RL_NEWLINE    
+    addiu $v0, $v0, 1
+    addiu $t2, $t2, 1
+    j     RL_LOOP
     nop
 
 RL_NEWLINE:
-    # substitui '\n' por '\0' e encerra
-    sb    $zero, 0($t2)               # coloca fim de string
-    # v0 já contém o comprimento sem o '\n'
+   
+    sb    $zero, 0($t2)
+
     j     RL_CLEANUP
     nop
 
 RL_END:
-    # terminou sem encontrar '\n'
+    # terminou sem '\n'
     nop
 
 RL_CLEANUP:
-    # restaura registradores salvos
+    # restaura registradores
     lw    $t3,  0($sp)
     lw    $t2,  4($sp)
     lw    $t1,  8($sp)
     lw    $t0, 12($sp)
     lw    $ra, 16($sp)
-    addiu $sp, $sp, 20                # desfaz espaço da pilha
-    jr    $ra                         # retorna
+    addiu $sp, $sp, 20
+    jr    $ra
     nop
 
 # ------------------------------------------------------------
 # strip_line_end(a0=buf) -> v0=len
-# Remove \n \r espaço e \t à direita; retorna novo comprimento.
+# Remove \n \r espaço e \t a direita; retorna novo comprimento.
 # ------------------------------------------------------------
 strip_line_end:
-    beq   $a0, $zero, sle_nullptr     # se ponteiro nulo, retorna 0 sem tocar memória
+    beq   $a0, $zero, sle_nullptr       # nao tocar mem?ria se ponteiro nulo
 
-    move  $t0, $a0                    # t0 = ponteiro para início do buffer
+    move  $t0, $a0              # t0 = ptr = buf
 
-# encontra o '\0' (fim da string)
+# encontra o '\0'
 sle_scan:
-    lb    $t1, 0($t0)                 # lê byte atual
-    beq   $t1, $zero, sle_at_end      # se '\0', achou o fim
-    addiu $t0, $t0, 1                 # avança ponteiro
-    j     sle_scan                    # continua varrendo
+    lb    $t1, 0($t0)
+    beq   $t1, $zero, sle_at_end
+    addiu $t0, $t0, 1
+    j     sle_scan
     nop
 
-# t0 aponta para o '\0' -> último caractere real é t0-1
+# t0 aponta para o '\0' -> ultimo indice real ? t0-1
 sle_at_end:
-    addiu $t0, $t0, -1                # volta uma posição
-    blt   $t0, $a0, sle_empty         # se string vazia, pula para sle_empty
+    addiu $t0, $t0, -1
+    blt   $t0, $a0, sle_empty
 
-# apaga enquanto for \n \r ' ' ou \t
+# apaga enquanto for \n \r ' ' \t
 sle_trim_loop:
-    blt   $t0, $a0, sle_empty         # se chegou ao início, termina
-    lb    $t1, 0($t0)                 # lê caractere atual
-    li    $t2, 10                     # '\n'
+    blt   $t0, $a0, sle_empty
+    lb    $t1, 0($t0)
+    li    $t2, 10              # '\n'
     beq   $t1, $t2, sle_wipe
-    li    $t2, 13                     # '\r'
+    li    $t2, 13              # '\r'
     beq   $t1, $t2, sle_wipe
-    li    $t2, 32                     # ' '
+    li    $t2, 32              # ' '
     beq   $t1, $t2, sle_wipe
-    li    $t2, 9                      # '\t'
-    bne   $t1, $t2, sle_done          # se diferente de \t, termina
+    li    $t2, 9               # '\t'
+    bne   $t1, $t2, sle_done
 sle_wipe:
-    sb    $zero, 0($t0)               # substitui caractere por '\0'
-    addiu $t0, $t0, -1                # anda uma posição para trás
-    j     sle_trim_loop               # repete limpeza
+    sb    $zero, 0($t0)
+    addiu $t0, $t0, -1
+    j     sle_trim_loop
     nop
 
 sle_done:
-    subu  $v0, $t0, $a0               # calcula comprimento novo (t0 - início)
-    addiu $v0, $v0, 1                 # ajusta comprimento final
-    jr    $ra                         # retorna
+    subu  $v0, $t0, $a0
+    addiu $v0, $v0, 1
+    jr    $ra
     nop
 
 sle_empty:
-    sb    $zero, 0($a0)               # coloca fim de string no início
-    move  $v0, $zero                  # comprimento = 0
+    sb    $zero, 0($a0)
+    move  $v0, $zero
     jr    $ra
     nop
 
 sle_nullptr:
-    move  $v0, $zero                  # se ponteiro nulo, retorna 0
+    move  $v0, $zero
     jr    $ra
     nop
-
