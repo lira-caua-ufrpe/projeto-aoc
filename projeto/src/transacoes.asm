@@ -323,7 +323,7 @@ preencher_data_hora_atual:
     nop
     move  $s0, $v0
 
-    li    $t1, 
+    li    $t1, ' '
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
