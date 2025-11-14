@@ -1,17 +1,30 @@
 # ============================================================
-# transacoes.asm — transações detalhadas + utilitários
-# Layout (32 bytes por transação):
-#   [0]      : 1=ativo, 0=vazio
-#   [1..8]   : conta destino (string, até 8, termina em 0)
-#   [9..12]  : valor em centavos (4 bytes, big-endian)
-#   [13..31] : "DD/MM/AAAA HH:MM:SS" + 0
-# 50 trans por cliente -> 1600 bytes por cliente
+# Universidade Federal Rural de Pernambuco (UFRPE)
+# Disciplina: Arquitetura e Organização de Computadores — 2025.2
+# Avaliação: Projetos 1 (PE1) – 1a VA
+# Professor: Vitor Coutinho
+# Atividade: Lista de Exercícios – Questão 1 (string.h)
+# Arquivo: transacoes.asm
+# Equipe: OPCODE
+# Integrantes: Cauã Lira; Sérgio Ricardo; Lucas Emanuel
+# Data de entrega: 13/11/2025 (horário da aula)
+# Apresentação: vídeo no ato da entrega
+# Descrição: Implementa strcpy, memcpy, strcmp, strncmp, strcat
+#            e um main com casos de teste no MARS (4.5+).
+# Convenções:
+#   - strcpy(a0=dst, a1=src)              -> v0=dst
+#   - memcpy(a0=dst, a1=src, a2=num)      -> v0=dst
+#   - strcmp(a0=str1, a1=str2)            -> v0 (<0, 0, >0)
+#   - strncmp(a0=str1, a1=str2, a3=num)   -> v0 (<0, 0, >0)
+#   - strcat(a0=dst, a1=src)              -> v0=dst
+#   - Temporários: $t0..$t9 | PC inicia em 'main'
+# Observação: Como em C, o comportamento de strcat com áreas sobrepostas é indefinido.
 # ============================================================
 
         .data
-transacoes_detalhe_debito:   .space 80000        # espaço para armazenar transações de débito
-transacoes_detalhe_credito:  .space 80000        # espaço para transações de crédito
-msg_transferencia:           .asciiz "TRANSF"    # mensagem padrão para tipo de transação
+transacoes_detalhe_debito:   .space 80000
+transacoes_detalhe_credito:  .space 80000
+msg_transferencia:           .asciiz "TRANSF"
 
         .text
         .globl mostrar_transacoes_debito
@@ -22,47 +35,46 @@ msg_transferencia:           .asciiz "TRANSF"    # mensagem padrão para tipo de 
 
 # ------------------------------------------------------------
 # mostrar_transacoes_debito(a0 = idx_cliente)
-# Mostra todas as transações de débito de um cliente
 # ------------------------------------------------------------
 mostrar_transacoes_debito:
-    addiu $sp, $sp, -24          # reserva espaço na stack
-    sw    $ra, 20($sp)           # salva endereço de retorno
-    sw    $s0, 16($sp)           # salva registradores usados
+    addiu $sp, $sp, -24
+    sw    $ra, 20($sp)
+    sw    $s0, 16($sp)
     sw    $s1, 12($sp)
     sw    $s2,  8($sp)
 
-    move  $s0, $a0               # guarda índice do cliente
+    move  $s0, $a0
 
-    li    $t0, 1600              # tamanho em bytes de todas as transações de um cliente
-    mul   $t1, $s0, $t0          # deslocamento para o cliente específico
+    li    $t0, 1600              
+    mul   $t1, $s0, $t0
     la    $s2, transacoes_detalhe_debito
-    addu  $s2, $s2, $t1          # aponta para o início das transações do cliente
+    addu  $s2, $s2, $t1
 
-    li    $s1, 0                 # contador de transações
+    li    $s1, 0
 mtd_loop:
-    li    $t0, 50                # máximo de 50 transações
-    beq   $s1, $t0, mtd_fim      # se chegou no máximo, sai do loop
+    li    $t0, 50
+    beq   $s1, $t0, mtd_fim
 
-    lb    $t1, 0($s2)            # verifica se a transação está ativa
-    beq   $t1, $zero, mtd_next   # se não estiver ativa, pula para próxima
+    lb    $t1, 0($s2)            
+    beq   $t1, $zero, mtd_next
 
-    # exibe data/hora da transação (posição 13)
+    # data/hora
     addiu $a0, $s2, 13
-    li    $v0, 4                 # syscall para imprimir string
+    li    $v0, 4
     syscall
 
-    # imprime 2 espaços
-    li    $v0, 11                # syscall para imprimir caractere
-    li    $a0, 32                # ASCII do espaço
+    # 2 espacos
+    li    $v0, 11
+    li    $a0, 32
     syscall
-    syscall                       # repetido para 2 espaços
+    syscall
 
-    # imprime tipo da transação
+    # tipo
     li    $v0, 4
     la    $a0, msg_transferencia
     syscall
 
-    # imprime 4 espaços extras
+    # 4 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -70,7 +82,7 @@ mtd_loop:
     syscall
     syscall
 
-    # lê valor em centavos (big-endian nos bytes 9..12)
+    # valor em [9..12] (big-endian -> word)
     lbu   $t2, 9($s2)
     lbu   $t3, 10($s2)
     lbu   $t4, 11($s2)
@@ -82,24 +94,23 @@ mtd_loop:
     or    $a0, $a0, $t4
     or    $a0, $a0, $t5
 
-    jal   formatar_centavos        # chama função para formatar valor
+    jal   formatar_centavos
     nop
     move  $a0, $v0
     li    $v0, 4
-    syscall                      
+    syscall
 
-    # pula linha
+    # \n
     li    $v0, 11
-    li    $a0, 10                # ASCII do \n
+    li    $a0, 10
     syscall
 
 mtd_next:
-    addiu $s2, $s2, 32           # próximo registro de transação
-    addiu $s1, $s1, 1            # incrementa contador
+    addiu $s2, $s2, 32
+    addiu $s1, $s1, 1
     j     mtd_loop
 
 mtd_fim:
-    # restaura registradores e stack
     lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
@@ -107,49 +118,49 @@ mtd_fim:
     addiu $sp, $sp, 24
     jr    $ra
     nop
+
 # ------------------------------------------------------------
 # mostrar_transacoes_credito(a0 = idx_cliente)
-# Mostra todas as transações de crédito de um cliente
 # ------------------------------------------------------------
 mostrar_transacoes_credito:
-    addiu $sp, $sp, -24          # reserva espaço na stack
-    sw    $ra, 20($sp)           # salva endereço de retorno
-    sw    $s0, 16($sp)           # salva registradores usados
+    addiu $sp, $sp, -24
+    sw    $ra, 20($sp)
+    sw    $s0, 16($sp)
     sw    $s1, 12($sp)
     sw    $s2,  8($sp)
 
-    move  $s0, $a0               # guarda índice do cliente
+    move  $s0, $a0
 
-    li    $t0, 1600              # tamanho em bytes de todas as transações de um cliente
-    mul   $t1, $s0, $t0          # deslocamento para o cliente específico
+    li    $t0, 1600
+    mul   $t1, $s0, $t0
     la    $s2, transacoes_detalhe_credito
-    addu  $s2, $s2, $t1          # aponta para início das transações de crédito do cliente
+    addu  $s2, $s2, $t1
 
-    li    $s1, 0                 # contador de transações
+    li    $s1, 0
 mtc_loop:
-    li    $t0, 50                # máximo de 50 transações
-    beq   $s1, $t0, mtc_fim      # se chegou no máximo, sai do loop
+    li    $t0, 50
+    beq   $s1, $t0, mtc_fim
 
-    lb    $t1, 0($s2)            # verifica se a transação está ativa
-    beq   $t1, $zero, mtc_next   # se não estiver ativa, pula para próxima
+    lb    $t1, 0($s2)
+    beq   $t1, $zero, mtc_next
 
-    # exibe data/hora da transação (posição 13)
+    # data/hora
     addiu $a0, $s2, 13
-    li    $v0, 4                 # syscall para imprimir string
+    li    $v0, 4
     syscall
 
-    # imprime 2 espaços
+    # 2 espacos
     li    $v0, 11
-    li    $a0, 32                # ASCII do espaço
+    li    $a0, 32
     syscall
-    syscall                       # repetido para 2 espaços
+    syscall
 
-    # imprime tipo da transação
+    # tipo
     li    $v0, 4
     la    $a0, msg_transferencia
     syscall
 
-    # imprime 4 espaços extras
+    # 4 espacos
     li    $v0, 11
     li    $a0, 32
     syscall
@@ -157,7 +168,7 @@ mtc_loop:
     syscall
     syscall
 
-    # lê valor em centavos (big-endian nos bytes 9..12)
+    # valor em [9..12] (big-endian -> word)
     lbu   $t2, 9($s2)
     lbu   $t3, 10($s2)
     lbu   $t4, 11($s2)
@@ -169,24 +180,23 @@ mtc_loop:
     or    $a0, $a0, $t4
     or    $a0, $a0, $t5
 
-    jal   formatar_centavos        # chama função para formatar valor
+    jal   formatar_centavos
     nop
     move  $a0, $v0
     li    $v0, 4
-    syscall                       # imprime valor formatado
+    syscall
 
-    # pula linha
+    # \n
     li    $v0, 11
-    li    $a0, 10                # ASCII do \n
+    li    $a0, 10
     syscall
 
 mtc_next:
-    addiu $s2, $s2, 32           # próximo registro de transação
-    addiu $s1, $s1, 1            # incrementa contador
+    addiu $s2, $s2, 32
+    addiu $s1, $s1, 1
     j     mtc_loop
 
 mtc_fim:
-    # restaura registradores e stack
     lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
@@ -197,52 +207,48 @@ mtc_fim:
 
 # ------------------------------------------------------------
 # adicionar_transacao_detalhe
-# Adiciona uma transação (débito ou crédito) para um cliente
 # a0 = idx_cliente
-# a1 = tipo (0 = débito, 1 = crédito)
+# a1 = tipo (0 = debito, 1 = cr?dito)
 # a2 = ponteiro pra conta (string)
 # a3 = valor em centavos (word)
-# Retorna:
-#   v0 = 1 se inserido com sucesso
-#   v0 = 0 se não houver slot disponível
 # ------------------------------------------------------------
 adicionar_transacao_detalhe:
-    addiu $sp, $sp, -24          # reserva espaço na stack
-    sw    $ra, 20($sp)           # salva endereço de retorno
-    sw    $s0, 16($sp)           # salva registradores usados
+    addiu $sp, $sp, -24
+    sw    $ra, 20($sp)
+    sw    $s0, 16($sp)
     sw    $s1, 12($sp)
     sw    $s2,  8($sp)
 
-    move  $s0, $a0               # índice do cliente
-    move  $s1, $a1               # tipo da transação
-    move  $s2, $a2               # ponteiro para conta
+    move  $s0, $a0
+    move  $s1, $a1
+    move  $s2, $a2
 
-    li    $t0, 1600              # tamanho em bytes das transações de um cliente
-    mul   $t1, $s0, $t0          # deslocamento para cliente específico
-    beq   $s1, $zero, atd_deb    # se tipo = 0, débito
+    li    $t0, 1600
+    mul   $t1, $s0, $t0
+    beq   $s1, $zero, atd_deb
     la    $t2, transacoes_detalhe_credito
     j     atd_base_ok
 atd_deb:
     la    $t2, transacoes_detalhe_debito
 atd_base_ok:
-    addu  $t2, $t2, $t1          # aponta para início das transações do cliente
+    addu  $t2, $t2, $t1
 
-    # procura slot livre
+    # achar slot livre
     li    $t3, 0
 atd_find:
     li    $t4, 50
-    beq   $t3, $t4, atd_full     # se chegou no máximo, não há slot
+    beq   $t3, $t4, atd_full
     lb    $t5, 0($t2)
-    beq   $t5, $zero, atd_slot   # encontrou slot vazio
+    beq   $t5, $zero, atd_slot
     addiu $t2, $t2, 32
     addiu $t3, $t3, 1
     j     atd_find
 
 atd_slot:
     li    $t5, 1
-    sb    $t5, 0($t2)            # marca como ativo
+    sb    $t5, 0($t2)
 
-    # copia conta para [1..8]
+    # conta [1..8]
     addiu $t6, $t2, 1
     move  $t7, $s2
 cpy_conta:
@@ -264,19 +270,18 @@ cpy_conta_done:
     sb    $t0, 2($t9)
     sb    $a3, 3($t9)
 
-    # preenche data/hora atual em [13..31]
+    # data/hora
     addiu $a0, $t2, 13
     jal   preencher_data_hora_atual
     nop
 
-    li    $v0, 1                 # sucesso
+    li    $v0, 1
     j     atd_end
 
 atd_full:
-    li    $v0, 0                 # não há slot disponível
+    li    $v0, 0
 
 atd_end:
-    # restaura registradores e stack
     lw    $s2,  8($sp)
     lw    $s1, 12($sp)
     lw    $s0, 16($sp)
@@ -287,16 +292,15 @@ atd_end:
 
 # ------------------------------------------------------------
 # preencher_data_hora_atual(a0 = buffer de 20B)
-# Preenche buffer com "DD/MM/AAAA HH:MM:SS"
 # ------------------------------------------------------------
 preencher_data_hora_atual:
     addiu $sp, $sp, -16
     sw    $ra, 12($sp)
     sw    $s0,  8($sp)
 
-    move  $s0, $a0               # ponteiro para buffer
+    move  $s0, $a0
 
-    jal   tick_datetime           # atualiza variáveis curr_day, curr_mon, etc.
+    jal   tick_datetime
     nop
 
     # dia
@@ -311,7 +315,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # mês
+    
     la    $t0, curr_mon
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -319,11 +323,11 @@ preencher_data_hora_atual:
     nop
     move  $s0, $v0
 
-    li    $t1, '/'
+    li    $t1, 
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # ano
+    
     la    $t0, curr_year
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -335,7 +339,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # hora
+   
     la    $t0, curr_hour
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -347,7 +351,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # minuto
+    
     la    $t0, curr_min
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -359,7 +363,7 @@ preencher_data_hora_atual:
     sb    $t1, 0($s0)
     addiu $s0, $s0, 1
 
-    # segundo
+    
     la    $t0, curr_sec
     lw    $a0, 0($t0)
     move  $a1, $s0
@@ -367,9 +371,8 @@ preencher_data_hora_atual:
     nop
     move  $s0, $v0
 
-    sb    $zero, 0($s0)           # termina string com 0
+    sb    $zero, 0($s0)
 
-    # restaura registradores e stack
     lw    $s0,  8($sp)
     lw    $ra, 12($sp)
     addiu $sp, $sp, 16
@@ -379,46 +382,42 @@ preencher_data_hora_atual:
 # ------------------------------------------------------------
 # print_two_buffer / print_four_buffer
 # ------------------------------------------------------------
-# print_two_buffer(a0 = valor 0-99, a1 = buffer)
-# Converte número de 2 dígitos para caracteres ASCII e grava no buffer
 print_two_buffer:
-    move  $v0, $a1               # ponteiro do buffer em v0
+    move  $v0, $a1
     li    $t0, 10
-    divu  $a0, $t0               # divide a0 por 10
-    mflo  $t1                     # quociente (dezena)
-    mfhi  $t2                     # resto (unidade)
-    addiu $t1, $t1, 48            # converte para ASCII
+    divu  $a0, $t0
+    mflo  $t1
+    mfhi  $t2
+    addiu $t1, $t1, 48
     addiu $t2, $t2, 48
     sb    $t1, 0($v0)
     sb    $t2, 1($v0)
-    addiu $v0, $v0, 2            # avança buffer
+    addiu $v0, $v0, 2
     jr    $ra
     nop
 
-# print_four_buffer(a0 = valor 0-9999, a1 = buffer)
-# Converte número de 4 dígitos para ASCII e grava no buffer
 print_four_buffer:
     move  $v0, $a1
     li    $t0, 1000
     divu  $a0, $t0
-    mflo  $t1                     # milhar
-    mfhi  $t3                     # resto
+    mflo  $t1
+    mfhi  $t3
     addiu $t1, $t1, 48
     sb    $t1, 0($v0)
     addiu $v0, $v0, 1
 
     li    $t0, 100
     divu  $t3, $t0
-    mflo  $t1                     # centena
-    mfhi  $t3                      # resto
+    mflo  $t1
+    mfhi  $t3
     addiu $t1, $t1, 48
     sb    $t1, 0($v0)
     addiu $v0, $v0, 1
 
     li    $t0, 10
     divu  $t3, $t0
-    mflo  $t1                     # dezena
-    mfhi  $t2                     # unidade
+    mflo  $t1
+    mfhi  $t2
     addiu $t1, $t1, 48
     addiu $t2, $t2, 48
     sb    $t1, 0($v0)
@@ -429,10 +428,9 @@ print_four_buffer:
 
 # ------------------------------------------------------------
 # formatar_centavos(a0 = valor em centavos) -> v0 = &buffer_valor_formatado
-# Formata valor em centavos para string "R$ XXXX,YY"
 # ------------------------------------------------------------
 formatar_centavos:
-    addiu $sp, $sp, -32           # reserva stack
+    addiu $sp, $sp, -32
     sw    $ra, 28($sp)
     sw    $s0, 24($sp)
     sw    $s1, 20($sp)
@@ -440,20 +438,20 @@ formatar_centavos:
     sw    $s3, 12($sp)
 
     la    $s0, buffer_valor_formatado
-    li    $t0, 'R'               # "R$ "
+    li    $t0, 'R'
     sb    $t0, 0($s0)
     li    $t0, '$'
     sb    $t0, 1($s0)
     li    $t0, ' '
     sb    $t0, 2($s0)
-    addiu $s1, $s0, 3            # ponteiro para parte dos reais
+    addiu $s1, $s0, 3
 
     li    $t0, 100
     divu  $a0, $t0
-    mflo  $s2                     # reais
-    mfhi  $t1                     # centavos
+    mflo  $s2            # reais
+    mfhi  $t1            # centavos
 
-    addiu $s3, $s0, 24            # área temporária para dígitos (inversa)
+    addiu $s3, $s0, 24   # pilha de digitos (inversa)
     move  $t2, $s3
 
     beq   $s2, $zero, fc_write_zero
@@ -491,18 +489,17 @@ fc_copy_done:
 
     li    $t3, 10
     divu  $t1, $t3
-    mflo  $t4                     # dezena centavos
-    mfhi  $t5                     # unidade centavos
+    mflo  $t4
+    mfhi  $t5
     addiu $t4, $t4, 48
     addiu $t5, $t5, 48
     sb    $t4, 0($s1)
     sb    $t5, 1($s1)
     addiu $s1, $s1, 2
 
-    sb    $zero, 0($s1)           # termina string
+    sb    $zero, 0($s1)
     la    $v0, buffer_valor_formatado
 
-    # restaura registradores e stack
     lw    $s3, 12($sp)
     lw    $s2, 16($sp)
     lw    $s1, 20($sp)
